@@ -1,0 +1,39 @@
+# Overrides para desarrollo local — usar junto con docker-compose.yml:
+# docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  frontend:
+    build:
+      target: development
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  backend-nest:
+    build:
+      target: development
+    volumes:
+      - ./apps/backend-nest:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  backend-fastapi:
+    build:
+      target: development
+    volumes:
+      - ./apps/backend-fastapi:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  mosquitto:
+    ports:
+      - "1883:1883"
