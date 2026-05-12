@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { authApi } from '@/lib/api'
 import { saveSession } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
@@ -32,10 +33,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-sm p-8 space-y-6">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">Kuaai HRMS</h1>
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
+      <Card className="w-full max-w-sm p-8 space-y-6 border border-border shadow-none">
+        <div className="flex flex-col items-center space-y-4">
+          <Image src="/logo.png" alt="Kuaai Intelligent HRMS" height={200} width={200} className="h-64 w-auto" priority />
           <p className="text-sm text-muted-foreground">Ingresá tus credenciales para continuar</p>
         </div>
 

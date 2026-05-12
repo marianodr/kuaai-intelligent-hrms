@@ -15,7 +15,7 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-card px-4">
+    <header className="flex h-16 items-center justify-between border-b bg-white px-6">
       <div />
       <div className="flex items-center gap-3">
         {user && (
@@ -23,7 +23,7 @@ export function Header() {
             {user.email} · <span className="uppercase font-medium">{user.role}</span>
           </span>
         )}
-        <Button variant="ghost" size="icon" onClick={handleLogout} title="Cerrar sesión">
+        <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Cerrar sesión">
           <LogOut className="size-4" />
         </Button>
       </div>

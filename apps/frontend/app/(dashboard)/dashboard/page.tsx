@@ -20,7 +20,7 @@ function MetricCard({
 }) {
   return (
     <Card className="p-5 flex items-start gap-4">
-      <div className="rounded-md bg-primary/10 p-2">
+      <div className="rounded-md bg-primary-light p-2">
         <Icon className="size-5 text-primary" />
       </div>
       <div>
