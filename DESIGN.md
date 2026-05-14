@@ -10,11 +10,9 @@ Minimalismo funcional: cada elemento en pantalla tiene un propósito. Se elimina
 
 ### Logo
 
-- **Archivo:** `apps/frontend/public/logo.png`
-- **Uso en código:** `<Image src="/logo.png" alt="Kuaai Intelligent HRMS" />`
 - **Variantes:**
-  - Completo (ícono + texto "Kuaai" + "Intelligent HRMS"): sidebar, login, onboarding
-  - Solo ícono (cabeza con circuito): navbar colapsada, favicon, loading states
+  - `apps/frontend/public/logo.png` — logo para la app principal (sidebar)
+  - `apps/frontend/public/logo-login.png` — logo para la pantalla de login
 - **Espacio mínimo:** 16px de padding alrededor del logo en todos los contextos
 - **Fondo:** siempre blanco (`#FFFFFF`) o transparente; nunca sobre fondos oscuros
 
@@ -198,7 +196,7 @@ Fila:     border-b border-border hover:bg-surface transition-colors
 
 - Fondo: `bg-white`
 - Card central: `max-w-sm`, centrada vertical y horizontalmente
-- Logo completo en la parte superior del card (80px de alto)
+- Logo `logo-login.png` en la parte superior del card
 - Sin imágenes decorativas ni gradientes
 - Un solo campo email + contraseña + botón primary full-width
 
@@ -236,7 +234,8 @@ Fila:     border-b border-border hover:bg-surface transition-colors
 
 ## Assets
 
-| Archivo                            | Uso                                      |
-|------------------------------------|------------------------------------------|
-| `apps/frontend/public/logo.png`    | Logo completo (navbar, login, docs)      |
-| `apps/frontend/public/favicon.ico` | Favicon (generar desde el ícono del logo)|
+| Archivo                                  | Uso                                       |
+|------------------------------------------|-------------------------------------------|
+| `apps/frontend/public/logo.png`          | Logo en sidebar (pantalla principal)      |
+| `apps/frontend/public/logo-login.png`    | Logo en pantalla de login                 |
+| `apps/frontend/public/favicon.ico`       | Favicon (generar desde el ícono del logo) |
