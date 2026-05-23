@@ -118,22 +118,25 @@ else
 fi
 
 # ─── 5. Documentos ───────────────────────────────────────────
-bold "5. Documentos (FastAPI)"
+bold "5. Documentos (vía NestJS proxy)"
 
-DOCS=$(curl -s "$FAPI/documents/")
-check "GET /documents/ retorna array" \
+DOCS=$(curl -s "$NEST/documents" \
+    -H "Authorization: Bearer $TOKEN")
+check "GET /documents retorna array" \
     '[ "$(echo "$DOCS" | jq -r "type")" = "array" ]'
 
 # ─── 6. Agente RAG ───────────────────────────────────────────
-bold "6. Agente RAG"
+bold "6. Agente RAG (vía NestJS proxy)"
 
-CHAT=$(curl -s -X POST "$FAPI/agent/chat" \
+CHAT=$(curl -s -X POST "$NEST/agent/chat" \
+    -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"question\":\"¿Cuántos empleados hay activos?\",\"user_id\":$USER_ID,\"thread_id\":\"test-e2e\"}")
 ANSWER=$(echo "$CHAT" | jq -r '.answer // empty')
 check "POST /agent/chat retorna answer no vacío" '[ -n "$ANSWER" ]'
 
-HIST=$(curl -s "$FAPI/agent/history/$USER_ID?limit=5")
+HIST=$(curl -s "$NEST/agent/history/$USER_ID?limit=5" \
+    -H "Authorization: Bearer $TOKEN")
 check "GET /agent/history/:id retorna array" \
     '[ "$(echo "$HIST" | jq -r "type")" = "array" ]'
 
