@@ -3,9 +3,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.logging_config import setup_logging
 from app import database, minio_client, embeddings as emb_service
 from app.services.agent_service import init_agent
 from app.routers import documents, agent
+
+setup_logging(settings.log_level, settings.log_file)
 
 
 @asynccontextmanager

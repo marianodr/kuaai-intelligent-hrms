@@ -422,11 +422,11 @@ El prompt instruye al agente sobre:
 ```python
 config = {
     "configurable": {"thread_id": thread_id},
-    "recursion_limit": 15,
+    "recursion_limit": 25,
 }
 ```
 
-El `recursion_limit` evita loops infinitos: si el agente no llega a una respuesta en 15 pasos (herramienta → resultado → herramienta → ...), LangGraph lanza una excepción que el router convierte en `HTTP 500`.
+El `recursion_limit` evita loops infinitos: si el agente no llega a una respuesta en 25 pasos (herramienta → resultado → herramienta → ...), LangGraph lanza una excepción que el router convierte en `HTTP 500`. Cada ciclo think→act consume 2 nodos en el grafo, por lo que el límite real de herramientas encadenables es ~12.
 
 #### Persistencia del historial
 
@@ -443,7 +443,7 @@ def _save_history(user_id: int, question: str, answer: str) -> None:
 
 ## 11. Herramientas del agente IA
 
-Las herramientas son funciones Python decoradas con `@tool` de LangChain. El LLM decide cuál invocar leyendo sus docstrings; por eso los docstrings están redactados como descripciones en lenguaje natural, no como documentación técnica.
+Las herramientas de un único parámetro string usan el decorator `@tool` de LangChain. Las herramientas con múltiples parámetros enteros (`get_employee_attendance`, `get_tardiness_report`, `get_monthly_summary`) usan `StructuredTool.from_function()` con un `BaseModel` de Pydantic como `args_schema`, ya que `@tool` no genera schemas JSON correctos para esos casos con `langchain-groq`. El LLM decide cuál invocar leyendo sus docstrings; por eso están redactados en lenguaje natural sin secciones `Args:` estructuradas (que malforman el schema).
 
 ### Herramientas disponibles
 

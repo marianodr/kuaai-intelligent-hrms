@@ -83,9 +83,11 @@ Header → getUser() → lee localStorage → muestra email/rol
 - Botón de desactivación con confirmación
 
 ### Documentos (`/documents`)
-- Upload directo a FastAPI (`POST /documents/upload`) con `multipart/form-data`
-- Disparo automático del pipeline RAG (`POST /documents/process`)
+- Upload a NestJS (`POST /documents/upload`) con `multipart/form-data` — NestJS aplica JWT y hace proxy a FastAPI
+- Disparo automático del pipeline RAG (`POST /documents/process`) a través de NestJS
 - Badge de estado: READY / PROCESSING / ERROR
+- Stepper visual de 4 pasos (Descarga → Extracción → Fragmentación → Embeddings) durante el procesamiento
+- Polling automático cada 3 segundos mientras haya documentos en estado `PROCESSING`
 - Eliminación con confirmación
 
 ### Chat (`/chat`)
@@ -94,3 +96,8 @@ Header → getUser() → lee localStorage → muestra email/rol
 - Thread persistente: `user-{userId}`
 - Scroll automático al último mensaje
 - Indicador de "Pensando..." mientras espera respuesta
+- Errores del agente mostrados como mensajes del asistente (incluye mensajes de rate limit legibles)
+
+## Manejo de errores de API
+
+`lib/api.ts` parsea tanto `body.message` (NestJS) como `body.detail` (FastAPI) para mostrar mensajes de error descriptivos en lugar de "Error 500" genérico.

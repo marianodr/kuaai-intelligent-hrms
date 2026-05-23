@@ -8,7 +8,6 @@ services:
     env_file: .env
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-      - NEXT_PUBLIC_AI_API_URL=${NEXT_PUBLIC_AI_API_URL}
     depends_on:
       - backend-nest
     restart: unless-stopped

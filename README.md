@@ -107,7 +107,8 @@ kuaai-intelligent-hrms/
 ├── infra/
 │   ├── postgres/
 │   │   ├── init.sql        # Esquema de tablas
-│   │   └── seed.sql        # Datos de prueba
+│   │   ├── seed.sql        # Datos de prueba
+│   │   └── migrations/     # Migraciones incrementales
 │   ├── minio/
 │   │   └── init-minio.sh   # Crea bucket inicial
 │   └── mosquitto/
@@ -123,7 +124,6 @@ kuaai-intelligent-hrms/
 ├── docker-compose.yml
 ├── docker-compose.dev.yml  # Overrides para desarrollo con volúmenes
 ├── .env.example
-├── PLAN.md                 # Especificación del proyecto
 └── ARCHITECTURE.md         # Diagramas de arquitectura (Mermaid)
 ```
 
@@ -159,7 +159,7 @@ Desde el frontend (`/documents`): subir un PDF → el pipeline lo procesa en bac
 ### 3. Consulta al agente RAG
 
 ```
-Pregunta → FastAPI → LangChain ReAct → herramientas SQL/pgvector → Groq → respuesta
+Pregunta → NestJS (proxy) → FastAPI → LangChain ReAct → herramientas SQL/pgvector → Groq → respuesta
 ```
 
 El agente tiene 6 herramientas:
@@ -215,7 +215,7 @@ Ver [`apps/iot-node/README.md`](apps/iot-node/README.md) para instrucciones de h
 | Recurso | Ubicación |
 |---|---|
 | Arquitectura completa (diagramas Mermaid) | `ARCHITECTURE.md` |
-| Plan de desarrollo por fases | `PLAN.md` |
+| Plan de desarrollo original (archivado) | `docs/plan-original.md` |
 | Endpoints NestJS | `docs/api/nest-endpoints.md` |
 | Endpoints FastAPI | `docs/api/fastapi-endpoints.md` |
 | Decisiones de arquitectura (ADR) | `docs/decisions/` |

@@ -41,6 +41,7 @@ erDiagram
         varchar name
         varchar minio_path
         varchar status "PROCESSING | READY | ERROR"
+        varchar progress "descripción del paso actual"
         integer uploaded_by FK
         timestamp created_at
     }
@@ -135,6 +136,7 @@ Metadatos de los documentos PDF subidos por los usuarios. El archivo físico est
 | `name` | `VARCHAR(255)` | Nombre original del archivo |
 | `minio_path` | `VARCHAR(500)` | Path dentro del bucket MinIO |
 | `status` | `VARCHAR(20)` | `PROCESSING`, `READY` o `ERROR` |
+| `progress` | `VARCHAR(100)` | Descripción del paso actual del pipeline (nullable). Ej: `"Extrayendo texto..."`. Añadida por migración `001_add_document_progress.sql` |
 | `uploaded_by` | `INTEGER FK` | Referencia a `users.id` (nullable) |
 | `created_at` | `TIMESTAMP` | Fecha de subida |
 

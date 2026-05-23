@@ -28,7 +28,13 @@ def chat(req: ChatRequest):
         answer = agent_service.chat(req.question, req.user_id, thread_id)
         return ChatResponse(answer=answer, thread_id=thread_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error del agente: {str(e)}")
+        err_str = str(e)
+        if "rate_limit_exceeded" in err_str or "Rate limit" in err_str:
+            raise HTTPException(
+                status_code=429,
+                detail="Límite de solicitudes alcanzado. Esperá unos segundos e intentá de nuevo.",
+            )
+        raise HTTPException(status_code=500, detail=f"Error del agente: {err_str}")
 
 
 @router.get("/history/{user_id}")

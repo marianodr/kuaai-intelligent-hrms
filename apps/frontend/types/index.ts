@@ -89,6 +89,7 @@ export interface Document {
   name: string
   minio_path?: string
   status: DocumentStatus
+  progress?: string | null
   created_at: string
 }
 

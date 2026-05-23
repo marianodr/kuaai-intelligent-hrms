@@ -18,24 +18,31 @@ El agente de Kuaai utiliza el patrón **ReAct** (Reasoning + Acting), implementa
 
 ```python
 agent = create_react_agent(
-    model=ChatGroq(model="llama-3.1-8b-instant", temperature=0),
+    model=ChatGroq(model="llama-3.1-8b-instant", temperature=0, max_retries=0),
     tools=ALL_TOOLS,                # 6 herramientas
     checkpointer=MemorySaver(),     # memoria de conversación por thread_id
-    prompt=SYSTEM_PROMPT,           # instrucciones: español, RRHH, concisión
 )
 
-# Invocación con límite de pasos y thread para memoria
+# Invocación con system prompt dinámico, thread para memoria y límite de pasos
 result = agent.invoke(
-    {"messages": [{"role": "user", "content": question}]},
+    {
+        "messages": [
+            {"role": "system", "content": system_prompt},  # incluye fecha de hoy
+            {"role": "user", "content": question},
+        ]
+    },
     config={
         "configurable": {"thread_id": "user-1"},
-        "recursion_limit": 15,
+        "recursion_limit": 25,
     }
 )
 ```
 
-**System prompt:**
-> Eres Kuaai, un asistente inteligente de Recursos Humanos para una empresa. Tienes acceso a herramientas para consultar información sobre empleados, asistencias y documentos empresariales. Responde SIEMPRE en español, de forma concisa y directa.
+**System prompt (dinámico, incluye fecha de hoy):**
+> Eres Kuaai, el asistente inteligente de Recursos Humanos de la empresa.
+> Hoy es {today}. Usa esta fecha cuando el usuario diga "hoy", "este mes" o "el mes actual".
+> Tenés herramientas para consultar documentos empresariales, asistencia diaria y mensual, información de empleados y reportes de tardanzas. Usá las herramientas antes de responder.
+> Respondé SIEMPRE en español, de forma clara y concisa.
 
 ---
 

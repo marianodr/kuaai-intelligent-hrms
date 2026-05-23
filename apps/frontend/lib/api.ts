@@ -7,7 +7,6 @@ import type {
 } from '@/types'
 
 const NEST = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-const FAPI = process.env.NEXT_PUBLIC_AI_API_URL ?? 'http://localhost:8000'
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   const token = getToken()
@@ -21,7 +20,7 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body.message ?? `Error ${res.status}`)
+    throw new Error(body.message ?? body.detail ?? `Error ${res.status}`)
   }
   return res.json() as Promise<T>
 }
@@ -63,27 +62,21 @@ export const dashboardApi = {
 
 // ─── Documents ─────────────────────────────────────────────────────────────
 export const documentsApi = {
-  list: () => request<Document[]>(`${FAPI}/documents/`),
-  register: (name: string, minioPath: string, uploadedBy: number) =>
-    request<{ document_id: string; status: string }>(`${FAPI}/documents/register`, {
-      method: 'POST',
-      body: JSON.stringify({ name, minio_path: minioPath, uploaded_by: uploadedBy }),
-    }),
+  list: () => request<Document[]>(`${NEST}/documents`),
   process: (documentId: string) =>
-    request<{ message: string }>(`${FAPI}/documents/process`, {
+    request<{ message: string }>(`${NEST}/documents/process`, {
       method: 'POST',
       body: JSON.stringify({ document_id: documentId }),
     }),
   delete: (id: string) =>
-    request<{ message: string }>(`${FAPI}/documents/${id}`, { method: 'DELETE' }),
+    request<{ message: string }>(`${NEST}/documents/${id}`, { method: 'DELETE' }),
 
-  // Upload directo a FastAPI (MVP: sube al backend que lo reenvía a MinIO)
   upload: async (file: File, userId: number): Promise<{ document_id: string }> => {
     const token = getToken()
     const form = new FormData()
     form.append('file', file)
     form.append('uploaded_by', String(userId))
-    const res = await fetch(`${FAPI}/documents/upload`, {
+    const res = await fetch(`${NEST}/documents/upload`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form,
@@ -96,10 +89,10 @@ export const documentsApi = {
 // ─── Agent / Chat ──────────────────────────────────────────────────────────
 export const agentApi = {
   chat: (question: string, userId: number, threadId: string) =>
-    request<ChatResponse>(`${FAPI}/agent/chat`, {
+    request<ChatResponse>(`${NEST}/agent/chat`, {
       method: 'POST',
       body: JSON.stringify({ question, user_id: userId, thread_id: threadId }),
     }),
   history: (userId: number, limit = 50) =>
-    request<ChatMessage[]>(`${FAPI}/agent/history/${userId}?limit=${limit}`),
+    request<ChatMessage[]>(`${NEST}/agent/history/${userId}?limit=${limit}`),
 }

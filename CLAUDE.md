@@ -1,11 +1,10 @@
 # CLAUDE.md — Instrucciones para Claude Code
 
 ## Contexto del proyecto
-Kuaai es un MVP de HRMS inteligente. Lee PLAN.md para
-entender la arquitectura completa antes de implementar.
+Kuaai es un MVP de HRMS inteligente. La arquitectura completa está documentada
+en docs/architecture/ y el plan original en docs/plan-original.md.
 
 ## Reglas generales
-- Antes de implementar cualquier cosa, leé PLAN.md
 - Nunca tomes decisiones arquitectónicas sin consultarme
 - Si encontrás un problema, explicá las opciones antes de elegir
 - Siempre implementá manejo de errores
@@ -77,5 +76,5 @@ El docker-compose.yml está en la raíz del monorepo.
 - Seeders para datos iniciales de prueba
 
 ## Orden de implementación
-Seguir estrictamente las fases definidas en PLAN.md.
-No avanzar a la siguiente fase sin confirmar con el usuario.
+El proyecto está en fase de corrección de errores y mejora de features.
+Consultar docs/plan-original.md para contexto histórico de las fases.

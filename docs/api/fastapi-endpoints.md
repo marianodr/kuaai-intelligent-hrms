@@ -22,6 +22,63 @@ http://localhost:8000/openapi.json
 
 ## Endpoints de Documents
 
+### `POST /documents/upload`
+
+Recibe un PDF desde el frontend (multipart/form-data), lo sube a MinIO y registra el documento en la base de datos con estado `PROCESSING`. Es el punto de entrada principal del flujo de carga de documentos desde la UI.
+
+**Form data:**
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `file` | `UploadFile` | Archivo PDF (validado por extensión `.pdf` y contenido no vacío) |
+| `uploaded_by` | `int` | ID del usuario autenticado |
+
+**Almacenamiento en MinIO:** `{document_id}/{filename_safe}` (los espacios del nombre se reemplazan con `_`).
+
+**Respuesta `200`:**
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Respuesta `400` — archivo no PDF:**
+```json
+{ "detail": "Solo se permiten archivos PDF" }
+```
+
+**Respuesta `400` — archivo vacío:**
+```json
+{ "detail": "El archivo está vacío" }
+```
+
+**curl:**
+```bash
+curl -X POST http://localhost:8000/documents/upload \
+  -F "file=@/ruta/al/Reglamento_Interno.pdf" \
+  -F "uploaded_by=1"
+```
+
+**Flujo completo desde la UI:**
+```bash
+# 1. Subir el PDF
+RESPONSE=$(curl -s -X POST http://localhost:8000/documents/upload \
+  -F "file=@Reglamento_Interno.pdf" \
+  -F "uploaded_by=1")
+
+DOC_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['document_id'])")
+
+# 2. Disparar el pipeline de ingestión
+curl -X POST http://localhost:8000/documents/process \
+  -H "Content-Type: application/json" \
+  -d "{\"document_id\": \"$DOC_ID\"}"
+
+# 3. Verificar estado (esperar ~10-60 segundos)
+curl http://localhost:8000/documents/$DOC_ID
+```
+
+---
+
 ### `POST /documents/register`
 
 Registra un nuevo documento en la base de datos con estado `PROCESSING`. Normalmente llamado por NestJS después de subir el PDF a MinIO.
@@ -169,11 +226,21 @@ curl http://localhost:8000/documents/550e8400-e29b-41d4-a716-446655440000
 
 ### `DELETE /documents/{document_id}`
 
-Elimina el documento y todos sus chunks (CASCADE). El archivo en MinIO **no** se elimina automáticamente.
+Elimina el documento, todos sus chunks (CASCADE) y el archivo original de MinIO.
+
+**Secuencia de eliminación:**
+1. Obtiene `minio_path` de la DB
+2. Borra el registro de `documents` (los chunks se eliminan en cascada)
+3. Elimina el objeto de MinIO (fallo no-fatal: se loguea como warning)
 
 **Respuesta `200`:**
 ```json
 { "message": "Documento eliminado" }
+```
+
+**Respuesta `404`:**
+```json
+{ "detail": "Documento no encontrado" }
 ```
 
 **curl:**
@@ -210,6 +277,11 @@ Endpoint principal del agente RAG. Recibe la pregunta del usuario, la procesa co
   "answer": "En mayo de 2026, los empleados con tardanzas fueron:\n- Pedro Ramírez (Operaciones): 4 tardanzas\n- Ana Fernández (Administración): 2 tardanzas\n- Juan García (Ventas): 1 tardanza",
   "thread_id": "user-1"
 }
+```
+
+**Respuesta `429` — rate limit de Groq:**
+```json
+{ "detail": "Límite de solicitudes alcanzado. Esperá unos segundos e intentá de nuevo." }
 ```
 
 **Respuesta `500`:**

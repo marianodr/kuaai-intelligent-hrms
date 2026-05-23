@@ -324,6 +324,95 @@ curl "http://localhost:3001/dashboard/tardiness?month=5&year=2026" \
 
 ---
 
+## Endpoints proxy — Documents y Agent
+
+NestJS actúa como API gateway: autentica con JWT y reenvía la solicitud a FastAPI. El frontend **solo** llama a estos endpoints; no accede a FastAPI directamente.
+
+Variable de entorno requerida en NestJS: `FASTAPI_URL=http://backend-fastapi:8000`.
+
+### `POST /documents/upload`
+
+Sube un PDF a FastAPI (que lo almacena en MinIO y registra en DB).
+
+**Headers:** `Authorization: Bearer <token>`  
+**Form data:** `file` (PDF), `uploaded_by` (integer)
+
+**Respuesta `200`:** `{ "document_id": "uuid" }`
+
+```bash
+curl -X POST http://localhost:3001/documents/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@Reglamento.pdf" \
+  -F "uploaded_by=1"
+```
+
+---
+
+### `POST /documents/process`
+
+Dispara el pipeline de ingestión RAG en FastAPI (background task).
+
+**Headers:** `Authorization: Bearer <token>`  
+**Body:** `{ "document_id": "uuid" }`
+
+**Respuesta `200`:** `{ "message": "Procesamiento iniciado", "document_id": "uuid" }`
+
+---
+
+### `GET /documents`
+
+Lista todos los documentos con su estado.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Respuesta `200`:** array de documentos `[{ id, name, status, progress, created_at }]`
+
+---
+
+### `GET /documents/:id`
+
+Detalle de un documento.
+
+---
+
+### `DELETE /documents/:id`
+
+Elimina documento, chunks y archivo de MinIO.
+
+**Respuesta `200`:** `{ "message": "Documento eliminado" }`
+
+---
+
+### `POST /agent/chat`
+
+Envía una pregunta al agente RAG.
+
+**Headers:** `Authorization: Bearer <token>`  
+**Body:** `{ "question": string, "user_id": integer, "thread_id"?: string }`
+
+**Respuesta `200`:** `{ "answer": string, "thread_id": string }`  
+**Respuesta `429`:** rate limit de Groq superado — reintentar en ~60 segundos.
+
+```bash
+curl -X POST http://localhost:3001/agent/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"¿Quiénes llegaron tarde hoy?","user_id":1,"thread_id":"user-1"}'
+```
+
+---
+
+### `GET /agent/history/:userId`
+
+Historial de conversación del usuario.
+
+**Headers:** `Authorization: Bearer <token>`  
+**Query:** `?limit=50`
+
+**Respuesta `200`:** array `[{ role, content, created_at }]`
+
+---
+
 ## Códigos de error comunes
 
 | Código | Significado | Causa típica |

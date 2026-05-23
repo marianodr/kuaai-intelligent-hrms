@@ -24,19 +24,20 @@ apps/backend-fastapi/
 └── app/
     ├── config.py                    # Settings via pydantic-settings (lee .env)
     ├── database.py                  # ThreadedConnectionPool psycopg2 + context managers
-    ├── minio_client.py              # Singleton Minio: download_to_bytes(), upload_bytes()
+    ├── minio_client.py              # Singleton Minio: download_to_bytes(), upload_bytes(), delete_object()
     ├── embeddings.py                # Singleton SentenceTransformer: get_embedding(), batch, to_pg_str()
     │
+    ├── logging_config.py            # Logging centralizado (consola + archivo rotativo)
     ├── routers/
-    │   ├── documents.py             # POST /documents/register, /process, GET /, /:id, DELETE /:id
-    │   └── agent.py                 # POST /agent/chat, GET /agent/history/:user_id
+    │   ├── documents.py             # POST /documents/upload, /register, /process, GET /, /:id, DELETE /:id
+    │   └── agent.py                 # POST /agent/chat, GET /agent/history/:user_id + manejo 429
     │
     ├── services/
     │   ├── ingestion.py             # process_document(): pipeline PDF → pgvector
     │   └── agent_service.py         # init_agent(), chat(), get_history()
     │
     └── tools/
-        └── hrms_tools.py            # 6 @tool functions + ALL_TOOLS list
+        └── hrms_tools.py            # 3 @tool (un param) + 3 StructuredTool (multi-param) + ALL_TOOLS
 ```
 
 **Dependencias clave (`requirements.txt`):**
@@ -53,7 +54,7 @@ apps/backend-fastapi/
 | `langchain` | 0.3.0 | Framework de agentes |
 | `langchain-groq` | 0.2.0 | Integración con Groq API |
 | `langchain-text-splitters` | 0.3.0 | RecursiveCharacterTextSplitter |
-| `langgraph` | 0.2.0 | create_react_agent, MemorySaver |
+| `langgraph` | 1.2.0 | create_react_agent, MemorySaver |
 | `pydantic-settings` | 2.3.0 | Configuración tipada desde .env |
 
 ---
@@ -123,11 +124,12 @@ Ver detalle completo en [docs/architecture/agent-tools.md](../architecture/agent
 
 | Método | Ruta | Body | Descripción |
 |--------|------|------|-------------|
-| `POST` | `/documents/register` | `{ name, minio_path, uploaded_by }` | Registra documento con status PROCESSING |
+| `POST` | `/documents/upload` | `multipart: file, uploaded_by` | Sube PDF a MinIO y registra en DB. Retorna `{ document_id }` |
 | `POST` | `/documents/process` | `{ document_id }` | Dispara pipeline en background (responde 200 inmediatamente) |
+| `POST` | `/documents/register` | `{ name, minio_path, uploaded_by }` | Registra documento ya alojado en MinIO (uso interno/NestJS) |
 | `GET` | `/documents/` | — | Lista todos los documentos con estado |
 | `GET` | `/documents/{id}` | — | Detalle de un documento |
-| `DELETE` | `/documents/{id}` | — | Elimina documento y chunks (CASCADE) |
+| `DELETE` | `/documents/{id}` | — | Elimina documento, chunks (CASCADE) y archivo de MinIO |
 
 ### Agent
 
@@ -154,8 +156,13 @@ agent_service.chat(question, user_id, thread_id="user-1")
           │
           ▼
 create_react_agent.invoke(
-  { messages: [{ role: "user", content: question }] },
-  config={ configurable: { thread_id }, recursion_limit: 15 }
+  {
+    "messages": [
+      { "role": "system", "content": system_prompt },   # incluye fecha de hoy
+      { "role": "user", "content": question }
+    ]
+  },
+  config={ configurable: { thread_id }, recursion_limit: 25 }
 )
           │
           ▼
@@ -202,30 +209,25 @@ uvicorn main:app --reload --port 8000
 http://localhost:8000/docs
 ```
 
-### Registrar y procesar un documento
+### Subir y procesar un documento
 
 ```bash
-# 1. Primero subir el PDF a MinIO (normalmente lo hace NestJS)
-#    Para testing manual, subir directo desde consola MinIO: http://localhost:9001
+# 1. Subir el PDF (sube a MinIO y registra en DB en un solo paso)
+RESPONSE=$(curl -s -X POST http://localhost:8000/documents/upload \
+  -F "file=@/ruta/al/Reglamento_Interno.pdf" \
+  -F "uploaded_by=1")
+# Respuesta: { "document_id": "uuid-xxx" }
 
-# 2. Registrar el documento en la DB
-curl -X POST http://localhost:8000/documents/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Reglamento Interno.pdf",
-    "minio_path": "reglamento-interno.pdf",
-    "uploaded_by": 1
-  }'
-# Respuesta: { "document_id": "uuid-xxx", "status": "PROCESSING" }
+DOC_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['document_id'])")
 
-# 3. Disparar el pipeline de ingestión
+# 2. Disparar el pipeline de ingestión en background
 curl -X POST http://localhost:8000/documents/process \
   -H "Content-Type: application/json" \
-  -d '{"document_id": "uuid-xxx"}'
+  -d "{\"document_id\": \"$DOC_ID\"}"
 # Respuesta: { "message": "Procesamiento iniciado", "document_id": "uuid-xxx" }
 
-# 4. Verificar el estado (esperar unos segundos)
-curl http://localhost:8000/documents/uuid-xxx
+# 3. Verificar el estado (esperar 10-60 segundos según tamaño del PDF)
+curl http://localhost:8000/documents/$DOC_ID
 # Respuesta: { ..., "status": "READY" }
 ```
 
@@ -287,6 +289,22 @@ Siguiendo el patrón recomendado por el skill `langchain-rag`: chunk_size=1000 c
 ### `create_react_agent` de LangGraph
 El agente usa el patrón ReAct (Reasoning + Acting): el LLM razona sobre qué herramienta usar, la ejecuta, observa el resultado y decide el próximo paso. `MemorySaver` mantiene el historial de conversación en memoria por `thread_id`, y la DB `chat_history` persiste para consulta histórica desde el frontend.
 
+**System prompt en `invoke()`:** el prompt de sistema se inyecta en cada llamada a `invoke()` como mensaje `role: "system"`, junto con la fecha de hoy. No se pasa al constructor de `create_react_agent` porque la fecha debe ser dinámica.
+
+**`recursion_limit: 25`:** cada ciclo think→act del agente consume 2 nodos en el grafo LangGraph. Con 6 herramientas disponibles y consultas que requieren 2-3 herramientas en cadena, el límite de 15 (original) era insuficiente.
+
+**`max_retries=0` en ChatGroq:** el SDK de Groq reintenta con backoff exponencial ante rate limits. En el tier gratuito (6.000 TPM), esto puede bloquear el request por minutos. Con `max_retries=0`, el error es inmediato y el router devuelve `429` con un mensaje claro al usuario.
+
+### `StructuredTool` para herramientas multi-parámetro
+El decorator `@tool` de LangChain no genera schemas JSON correctos para herramientas con múltiples parámetros enteros cuando se usa con `langchain-groq`. El modelo recibe un schema malformado y genera llamadas en formato XML (`<function=nombre>{...}`) en lugar de JSON, causando `tool_use_failed` en la Groq API.
+
+Solución: las tres herramientas con múltiples parámetros numéricos (`get_employee_attendance`, `get_tardiness_report`, `get_monthly_summary`) usan `StructuredTool.from_function()` con un `BaseModel` de Pydantic como `args_schema`. Las herramientas de un solo parámetro string siguen usando `@tool`.
+
+Adicionalmente, las secciones `Args:` de estilo Google en los docstrings también causaban schemas malformados. Los docstrings de todas las herramientas usan descripción plana sin secciones estructuradas.
+
+### Logging centralizado (`logging_config.py`)
+`setup_logging(log_level, log_file)` configura dos handlers: consola (nivel configurable vía `LOG_LEVEL`) y archivo rotativo de 10 MB (nivel DEBUG siempre). Librerías ruidosas como `docling`, `transformers` y `sentence_transformers` se silencian a WARNING para mantener los logs legibles durante el desarrollo.
+
 ### Background tasks para ingestión
 El pipeline de ingestión puede tardar varios segundos (Docling es pesado con PDFs grandes). Usar `BackgroundTasks` de FastAPI permite responder `200 OK` inmediatamente al NestJS y procesar en background, con el estado del documento reflejado en la DB (`PROCESSING` → `READY`).
 
@@ -297,8 +315,8 @@ Se eligió psycopg2 con `ThreadedConnectionPool` en lugar de asyncpg para evitar
 
 ## Pendientes para fases siguientes
 
-- [ ] **Fase 4:** El frontend Next.js consume `POST /agent/chat` para el chat UI y `GET /agent/history/:user_id` para historial
-- [ ] **Fase 4:** Upload de PDFs: el frontend sube a NestJS → NestJS llama a FastAPI `/documents/register` y `/documents/process`
+- [x] **Fase 4:** El frontend Next.js consume `POST /agent/chat` para el chat UI y `GET /agent/history/:user_id` para historial
+- [x] **Fase 4:** Upload de PDFs: el frontend sube a NestJS `POST /documents/upload` → NestJS hace proxy a FastAPI → FastAPI almacena en MinIO y registra en DB → frontend llama a `/documents/process` vía NestJS
 - [ ] Streaming de respuesta del agente (Server-Sent Events) para UX más fluida
 - [ ] Migrar MemorySaver a PostgreSQL checkpointer (`langgraph-checkpoint-postgres`) para persistencia entre reinicios
 - [ ] Manejo de PDFs muy grandes: dividir en páginas antes de pasar a Docling

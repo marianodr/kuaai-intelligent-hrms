@@ -13,6 +13,7 @@ import { EmployeesModule } from './employees/employees.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MqttModule } from './mqtt/mqtt.module';
+import { ProxyModule } from './proxy/proxy.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { MqttModule } from './mqtt/mqtt.module';
     AttendanceModule,
     DashboardModule,
     MqttModule,
+    ProxyModule,
   ],
 })
 export class AppModule {}

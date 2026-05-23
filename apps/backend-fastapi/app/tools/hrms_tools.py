@@ -1,6 +1,7 @@
 import json
 import logging
-from langchain_core.tools import tool
+from pydantic import BaseModel
+from langchain_core.tools import tool, StructuredTool
 
 from app import database, embeddings as emb_service
 
@@ -11,16 +12,14 @@ def _rows_to_json(rows) -> str:
     return json.dumps([dict(r) for r in rows], ensure_ascii=False, default=str)
 
 
+# ── Tools de un solo parámetro — @tool funciona bien ─────────────────────────
+
 @tool
 def search_documents(query: str) -> str:
-    """
-    Busca información en los documentos empresariales cargados
+    """Busca información en los documentos empresariales cargados
     (políticas, reglamentos, manuales). Usar para preguntas sobre
     normativas, procedimientos y reglas de la empresa.
-
-    Args:
-        query: La pregunta o término a buscar en los documentos empresariales
-    """
+    Parámetro query: la pregunta o término a buscar."""
     embedding = emb_service.get_embedding(query)
     emb_str = emb_service.embedding_to_pg_str(embedding)
 
@@ -53,14 +52,9 @@ def search_documents(query: str) -> str:
 
 @tool
 def get_daily_attendance(date: str) -> str:
-    """
-    Retorna la asistencia del día indicado.
+    """Retorna la asistencia del día indicado.
     Incluye empleados presentes, ausentes y con tardanza.
-    Formato de fecha: YYYY-MM-DD.
-
-    Args:
-        date: Fecha en formato YYYY-MM-DD (ejemplo: 2024-11-15)
-    """
+    Parámetro date: fecha en formato YYYY-MM-DD (ejemplo: 2024-11-15)."""
     with database.get_cursor() as (cur, conn):
         cur.execute(
             """
@@ -94,16 +88,46 @@ def get_daily_attendance(date: str) -> str:
 
 
 @tool
-def get_employee_attendance(employee_id: int, month: int, year: int) -> str:
-    """
-    Retorna el resumen de asistencias de un empleado en un mes y año específico.
-    Incluye días presentes, ausentes, tardanzas y salidas automáticas.
+def get_employee_info(query: str) -> str:
+    """Busca información de un empleado por nombre, apellido o legajo.
+    Retorna datos básicos del perfil.
+    Parámetro query: nombre, apellido o número de legajo a buscar."""
+    with database.get_cursor() as (cur, conn):
+        cur.execute(
+            """
+            SELECT
+                id, first_name, last_name, email, legajo,
+                department, status, created_at
+            FROM employees
+            WHERE
+                first_name ILIKE %s
+                OR last_name ILIKE %s
+                OR (first_name || ' ' || last_name) ILIKE %s
+                OR legajo ILIKE %s
+            ORDER BY last_name, first_name
+            LIMIT 5
+            """,
+            (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"),
+        )
+        rows = cur.fetchall()
 
-    Args:
-        employee_id: ID numérico del empleado
-        month: Mes (1-12)
-        year: Año (ej: 2024)
-    """
+    if not rows:
+        return f"No se encontró ningún empleado que coincida con '{query}'."
+
+    return json.dumps([dict(r) for r in rows], ensure_ascii=False, default=str)
+
+
+# ── Tools con múltiples parámetros — StructuredTool + Pydantic ───────────────
+# El decorator @tool no genera schemas correctos para múltiples params enteros
+# con la versión de langchain-groq/Groq API instalada, causando tool_use_failed.
+
+class _EmployeeAttendanceArgs(BaseModel):
+    employee_id: int
+    month: int
+    year: int
+
+
+def _get_employee_attendance(employee_id: int, month: int, year: int) -> str:
     with database.get_cursor() as (cur, conn):
         cur.execute(
             "SELECT first_name || ' ' || last_name AS nombre FROM employees WHERE id = %s",
@@ -146,16 +170,22 @@ def get_employee_attendance(employee_id: int, month: int, year: int) -> str:
     return json.dumps(result, ensure_ascii=False, default=str)
 
 
-@tool
-def get_tardiness_report(month: int, year: int) -> str:
-    """
-    Retorna lista de empleados con tardanzas en el mes indicado.
-    Incluye cantidad de tardanzas por empleado.
+get_employee_attendance = StructuredTool.from_function(
+    func=_get_employee_attendance,
+    name="get_employee_attendance",
+    description="Retorna el resumen de asistencias de un empleado en un mes y año específico. "
+                "Incluye días presentes, tardanzas y salidas automáticas. "
+                "Usar employee_id (obtenido con get_employee_info), month (1-12) y year.",
+    args_schema=_EmployeeAttendanceArgs,
+)
 
-    Args:
-        month: Mes (1-12)
-        year: Año (ej: 2024)
-    """
+
+class _MonthYearArgs(BaseModel):
+    month: int
+    year: int
+
+
+def _get_tardiness_report(month: int, year: int) -> str:
     with database.get_cursor() as (cur, conn):
         cur.execute(
             """
@@ -184,16 +214,16 @@ def get_tardiness_report(month: int, year: int) -> str:
     return json.dumps(result, ensure_ascii=False, default=str)
 
 
-@tool
-def get_monthly_summary(month: int, year: int) -> str:
-    """
-    Retorna resumen general de asistencia del mes.
-    Incluye porcentaje de asistencia promedio y ausencias.
+get_tardiness_report = StructuredTool.from_function(
+    func=_get_tardiness_report,
+    name="get_tardiness_report",
+    description="Retorna lista de empleados con tardanzas en el mes indicado, "
+                "ordenados por cantidad de tardanzas. Parámetros: month (1-12) y year.",
+    args_schema=_MonthYearArgs,
+)
 
-    Args:
-        month: Mes (1-12)
-        year: Año (ej: 2024)
-    """
+
+def _get_monthly_summary(month: int, year: int) -> str:
     with database.get_cursor() as (cur, conn):
         cur.execute("SELECT count(*) AS total FROM employees WHERE status = 'ACTIVO'")
         total_active = cur.fetchone()["total"]
@@ -245,38 +275,13 @@ def get_monthly_summary(month: int, year: int) -> str:
     return json.dumps(result, ensure_ascii=False, default=str)
 
 
-@tool
-def get_employee_info(query: str) -> str:
-    """
-    Busca información de un empleado por nombre, apellido o legajo.
-    Retorna datos básicos del perfil.
-
-    Args:
-        query: Nombre, apellido o número de legajo del empleado a buscar
-    """
-    with database.get_cursor() as (cur, conn):
-        cur.execute(
-            """
-            SELECT
-                id, first_name, last_name, email, legajo,
-                department, status, created_at
-            FROM employees
-            WHERE
-                first_name ILIKE %s
-                OR last_name ILIKE %s
-                OR (first_name || ' ' || last_name) ILIKE %s
-                OR legajo ILIKE %s
-            ORDER BY last_name, first_name
-            LIMIT 5
-            """,
-            (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"),
-        )
-        rows = cur.fetchall()
-
-    if not rows:
-        return f"No se encontró ningún empleado que coincida con '{query}'."
-
-    return json.dumps([dict(r) for r in rows], ensure_ascii=False, default=str)
+get_monthly_summary = StructuredTool.from_function(
+    func=_get_monthly_summary,
+    name="get_monthly_summary",
+    description="Retorna resumen general de asistencia del mes: porcentaje promedio, "
+                "días con registros y total de tardanzas. Parámetros: month (1-12) y year.",
+    args_schema=_MonthYearArgs,
+)
 
 
 ALL_TOOLS = [

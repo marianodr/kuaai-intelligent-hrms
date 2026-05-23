@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # FastAPI
     fastapi_port: int = 8000
 
+    # Logging
+    log_level: str = "INFO"
+    log_file: str = "logs/kuaai.log"
+
     class Config:
         env_file = ".env"
         case_sensitive = False

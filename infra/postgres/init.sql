@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS documents (
   name          VARCHAR(255) NOT NULL,
   minio_path    VARCHAR(500) NOT NULL,
   status        VARCHAR(20) DEFAULT 'PROCESSING' CHECK (status IN ('PROCESSING', 'READY', 'ERROR')),
+  progress      VARCHAR(100),
   uploaded_by   INTEGER REFERENCES users(id),
   created_at    TIMESTAMP DEFAULT NOW()
 );

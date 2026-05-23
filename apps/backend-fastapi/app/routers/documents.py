@@ -1,6 +1,6 @@
 import uuid
 import logging
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
 from pydantic import BaseModel
 
 from app import database, minio_client
@@ -18,6 +18,40 @@ class UploadDocumentRequest(BaseModel):
     name: str
     minio_path: str
     uploaded_by: int
+
+
+@router.post("/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    uploaded_by: int = Form(...),
+):
+    """
+    Recibe un PDF del frontend, lo sube a MinIO y registra el documento en DB.
+    El cliente debe llamar a /process después para iniciar el pipeline de ingestión.
+    """
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
+
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) == 0:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+
+    doc_id = str(uuid.uuid4())
+    safe_name = file.filename.replace(" ", "_")
+    minio_path = f"{doc_id}/{safe_name}"
+
+    minio_client.upload_bytes(minio_path, pdf_bytes, content_type="application/pdf")
+
+    with database.get_cursor(dict_cursor=False) as (cur, conn):
+        cur.execute(
+            """INSERT INTO documents (id, name, minio_path, status, uploaded_by)
+               VALUES (%s, %s, %s, 'PROCESSING', %s)""",
+            (doc_id, file.filename, minio_path, uploaded_by),
+        )
+        conn.commit()
+
+    logger.info(f"Documento subido: {doc_id} ({file.filename}) por usuario {uploaded_by}")
+    return {"document_id": doc_id}
 
 
 @router.post("/process")
@@ -51,7 +85,7 @@ def register_document(req: UploadDocumentRequest):
 def list_documents():
     with database.get_cursor() as (cur, conn):
         cur.execute(
-            "SELECT id, name, status, created_at FROM documents ORDER BY created_at DESC"
+            "SELECT id, name, status, progress, created_at FROM documents ORDER BY created_at DESC"
         )
         rows = cur.fetchall()
     return [dict(r) for r in rows]
@@ -61,7 +95,7 @@ def list_documents():
 def get_document(document_id: str):
     with database.get_cursor() as (cur, conn):
         cur.execute(
-            "SELECT id, name, minio_path, status, created_at FROM documents WHERE id = %s",
+            "SELECT id, name, minio_path, status, progress, created_at FROM documents WHERE id = %s",
             (document_id,),
         )
         row = cur.fetchone()
@@ -72,10 +106,22 @@ def get_document(document_id: str):
 
 @router.delete("/{document_id}")
 def delete_document(document_id: str):
+    with database.get_cursor() as (cur, _):
+        cur.execute("SELECT minio_path FROM documents WHERE id = %s", (document_id,))
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    minio_path = row["minio_path"]
+
     with database.get_cursor(dict_cursor=False) as (cur, conn):
         # Los chunks se eliminan en cascada por la FK ON DELETE CASCADE
         cur.execute("DELETE FROM documents WHERE id = %s", (document_id,))
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Documento no encontrado")
         conn.commit()
+
+    try:
+        minio_client.delete_object(minio_path)
+    except Exception as e:
+        logger.warning(f"No se pudo eliminar objeto de MinIO {minio_path}: {e}")
+
     return {"message": "Documento eliminado"}

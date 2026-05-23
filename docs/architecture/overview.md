@@ -22,15 +22,15 @@ El nodo IoT publica eventos MQTT al broker Mosquitto cada vez que un empleado ac
 [Pico 2W + RFID] --MQTT--> [Mosquitto] --subscribe--> [NestJS AttendanceService]
 ```
 
-### 2. Cliente-Servidor en tres capas
-El frontend Next.js actúa como cliente que consume dos APIs REST independientes:
-- **NestJS (:3001):** autenticación, empleados, dashboard — dominio HRMS
-- **FastAPI (:8000):** documentos, chat con el agente — dominio IA
+### 2. Cliente-Servidor en tres capas con proxy
+El frontend Next.js habla **únicamente** con NestJS. NestJS actúa como API gateway: maneja auth, empleados y dashboard directamente, y hace de proxy hacia FastAPI para documentos y chat.
 
 ```
-[Next.js] --REST--> [NestJS]    (auth, CRUD, dashboard)
-[Next.js] --REST--> [FastAPI]   (RAG, chat, documentos)
+[Next.js] --REST--> [NestJS]              (auth, CRUD, dashboard)
+                       └── proxy -->  [FastAPI]   (RAG, chat, documentos)
 ```
+
+Este patrón tiene dos beneficios: el frontend no necesita conocer la URL interna de FastAPI, y NestJS puede aplicar el guard JWT antes de dejar pasar la solicitud al servicio de IA.
 
 ### 3. Agéntico (Agentic RAG)
 El agente LangChain orquesta dinámicamente múltiples herramientas para responder consultas en lenguaje natural. Decide en tiempo de ejecución qué herramienta usar (búsqueda semántica en pgvector, consultas SQL estructuradas, o ambas) según la intención del usuario.
@@ -63,8 +63,8 @@ C4Container
     Container(mosquitto, "Mosquitto", "MQTT Broker", "Recibe eventos del nodo IoT")
 
     Rel(user, frontend, "Usa", "HTTPS :3000")
-    Rel(frontend, nest, "API REST", "HTTP :3001")
-    Rel(frontend, fastapi, "API REST (RAG/Chat)", "HTTP :8000")
+    Rel(frontend, nest, "API REST (todas las rutas)", "HTTP :3001")
+    Rel(nest, fastapi, "Proxy (documentos + agente)", "HTTP :8000")
     Rel(nest, postgres, "Leer/Escribir", "TCP :5432")
     Rel(nest, minio, "Subir PDFs", "HTTP :9000")
     Rel(nest, mosquitto, "Suscripción MQTT", "TCP :1883")
@@ -81,8 +81,8 @@ C4Container
 | Servicio | Tecnología | Responsabilidades |
 |----------|-----------|-------------------|
 | **Frontend** | Next.js 14 + Tailwind + shadcn/ui | Login, dashboard de asistencias, gestión de empleados, carga de documentos, chat con el agente |
-| **Backend NestJS** | NestJS + TypeORM + Passport | Auth JWT con roles, CRUD empleados, suscripción MQTT, lógica de asistencia, cron 16:00, métricas dashboard |
-| **Backend FastAPI** | FastAPI + LangChain + Groq | Ingestión de PDFs, pipeline de embeddings, agente RAG, endpoints de chat, historial de conversación |
+| **Backend NestJS** | NestJS + TypeORM + Passport | Auth JWT con roles, CRUD empleados, suscripción MQTT, lógica de asistencia, cron 16:00, métricas dashboard. Actúa como **API gateway/proxy** hacia FastAPI para las rutas de documentos y agente |
+| **Backend FastAPI** | FastAPI + LangChain + Groq | Ingestión de PDFs, pipeline de embeddings, agente RAG, endpoints de chat, historial de conversación. Solo accesible desde NestJS en producción |
 | **PostgreSQL + pgvector** | PostgreSQL 16 | Datos relacionales (empleados, asistencias, usuarios, documentos) + vectores de embeddings (384 dims) |
 | **MinIO** | MinIO (S3-compatible) | Almacenamiento de archivos PDF originales subidos por usuarios |
 | **Mosquitto** | Eclipse Mosquitto 2 | Broker MQTT que recibe eventos del nodo IoT y los distribuye a los suscriptores |
@@ -103,7 +103,7 @@ C4Container
 | LLM | Groq API — Llama 3.1 8B Instant | — |
 | Embeddings | SentenceTransformers — all-MiniLM-L6-v2 | 384 dims |
 | Extracción PDF | Docling | 2+ |
-| Framework agente | LangChain + LangGraph | 0.3+ / 0.2+ |
+| Framework agente | LangChain + LangGraph | 0.3+ / 1.2+ |
 | ORM | TypeORM | 0.3+ |
 | Autenticación | JWT + Passport.js | — |
 | Contenedorización | Docker + Docker Compose | — |

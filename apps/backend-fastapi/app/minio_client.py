@@ -33,3 +33,7 @@ def upload_bytes(object_name: str, data: bytes, content_type: str = "application
         length=len(data),
         content_type=content_type,
     )
+
+
+def delete_object(object_name: str) -> None:
+    _client.remove_object(_bucket, object_name)

@@ -1,5 +1,6 @@
 import tempfile
 import os
+import time
 import logging
 from docling.document_converter import DocumentConverter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -23,28 +24,58 @@ def process_document(document_id: str) -> None:
     Pipeline completo: MinIO → Docling → chunks → embeddings → pgvector.
     Actualiza el status del documento en la DB al finalizar.
     """
+    t0 = time.perf_counter()
+
+    def elapsed() -> str:
+        return f"{time.perf_counter() - t0:.1f}s"
+
     try:
-        _set_document_status(document_id, "PROCESSING")
+        _set_status_and_progress(document_id, "PROCESSING", "Descargando PDF...")
 
         minio_path = _get_minio_path(document_id)
-        logger.info(f"Procesando documento {document_id} desde {minio_path}")
+        logger.info(f"[{document_id}] Pipeline iniciado — minio_path={minio_path}")
 
+        t1 = time.perf_counter()
         pdf_bytes = minio_client.download_to_bytes(minio_path)
+        logger.info(
+            f"[{document_id}] [1/4] PDF descargado — "
+            f"{len(pdf_bytes):,} bytes ({time.perf_counter() - t1:.1f}s)"
+        )
+
+        t2 = time.perf_counter()
+        _set_progress(document_id, "Extrayendo texto con Docling...")
         text = _extract_text(pdf_bytes)
-        logger.info(f"Texto extraído: {len(text)} caracteres")
+        logger.info(
+            f"[{document_id}] [2/4] Texto extraído por Docling — "
+            f"{len(text):,} caracteres ({time.perf_counter() - t2:.1f}s)"
+        )
 
+        t3 = time.perf_counter()
+        _set_progress(document_id, "Dividiendo en fragmentos...")
         chunks = _splitter.split_text(text)
-        logger.info(f"Chunks generados: {len(chunks)}")
+        logger.info(
+            f"[{document_id}] [3/4] Chunking completado — "
+            f"{len(chunks)} chunks ({time.perf_counter() - t3:.1f}s)"
+        )
 
+        t4 = time.perf_counter()
+        _set_progress(document_id, "Generando embeddings...")
         embeddings = emb_service.get_embeddings_batch(chunks)
         _store_chunks(document_id, chunks, embeddings)
-        logger.info(f"Chunks almacenados en pgvector: {len(chunks)}")
+        logger.info(
+            f"[{document_id}] [4/4] Embeddings generados y almacenados en pgvector — "
+            f"{len(chunks)} vectores ({time.perf_counter() - t4:.1f}s)"
+        )
 
-        _set_document_status(document_id, "READY")
+        _set_status_and_progress(document_id, "READY", None)
+        logger.info(f"[{document_id}] Pipeline completado exitosamente — total {elapsed()}")
 
     except Exception as e:
-        logger.error(f"Error procesando documento {document_id}: {e}")
-        _set_document_status(document_id, "ERROR")
+        logger.error(
+            f"[{document_id}] Pipeline fallido después de {elapsed()} — {e}",
+            exc_info=True,
+        )
+        _set_status_and_progress(document_id, "ERROR", None)
         raise
 
 
@@ -82,10 +113,19 @@ def _store_chunks(document_id: str, chunks: list[str], embeddings: list[list[flo
         conn.commit()
 
 
-def _set_document_status(document_id: str, status: str) -> None:
+def _set_status_and_progress(document_id: str, status: str, progress: str | None) -> None:
     with database.get_cursor(dict_cursor=False) as (cur, conn):
         cur.execute(
-            "UPDATE documents SET status = %s WHERE id = %s",
-            (status, document_id),
+            "UPDATE documents SET status = %s, progress = %s WHERE id = %s",
+            (status, progress, document_id),
+        )
+        conn.commit()
+
+
+def _set_progress(document_id: str, progress: str) -> None:
+    with database.get_cursor(dict_cursor=False) as (cur, conn):
+        cur.execute(
+            "UPDATE documents SET progress = %s WHERE id = %s",
+            (progress, document_id),
         )
         conn.commit()
