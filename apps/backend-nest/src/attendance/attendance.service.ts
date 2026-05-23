@@ -28,6 +28,12 @@ export class AttendanceService {
     }
 
     const now = new Date();
+    const dow = now.getDay();
+    if (dow === 0 || dow === 6) {
+      this.logger.warn(`Fichaje ignorado en fin de semana: ${rfidCode}`);
+      return;
+    }
+
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
