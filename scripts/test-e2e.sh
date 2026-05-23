@@ -146,6 +146,14 @@ HIST=$(curl -s "$NEST/agent/history/$USER_ID?limit=5" \
 check "GET /agent/history/:id retorna array" \
     '[ "$(echo "$HIST" | jq -r "type")" = "array" ]'
 
+# ─── Cleanup — eliminar empleados de prueba ──────────────────
+bold "Cleanup"
+
+PG_CONTAINER="${PG_CONTAINER:-kuaai-intelligent-hrms-postgres-1}"
+DELETED=$(docker exec "$PG_CONTAINER" psql -U kuaai_user -d kuaai -tAc \
+    "DELETE FROM employees WHERE legajo LIKE 'EMP-E2E%' RETURNING id;" | wc -l)
+green "Empleados de prueba eliminados ($DELETED)"
+
 # ─── Resumen ─────────────────────────────────────────────────
 echo ""
 bold "Resultado: $PASS pasaron / $((PASS + FAIL)) total"
