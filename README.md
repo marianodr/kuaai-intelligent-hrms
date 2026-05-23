@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apps/frontend/public/logo-login.png" alt="Kuaai HRMS" width="200"/>
+</p>
+
 # Kuaai HRMS
 
 Sistema de Gestión de Recursos Humanos inteligente para PyMEs de Misiones, Argentina.
