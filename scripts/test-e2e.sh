@@ -61,10 +61,11 @@ EMP_LIST=$(curl -s "$NEST/employees?page=1&limit=10" \
 EMP_TOTAL=$(echo "$EMP_LIST" | jq -r '.total // 0')
 check "GET /employees retorna total > 0" '[ "$EMP_TOTAL" -gt 0 ]'
 
+TS=$(date +%s)
 EMP_CREATE=$(curl -s -X POST "$NEST/employees" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    -d '{"first_name":"Test","last_name":"E2E","legajo":"EMP-E2E","rfid_code":"999000111","department":"QA"}')
+    -d "{\"first_name\":\"Test\",\"last_name\":\"E2E\",\"legajo\":\"EMP-E2E-$TS\",\"rfid_code\":\"E2E$TS\",\"department\":\"QA\"}")
 NEW_ID=$(echo "$EMP_CREATE" | jq -r '.id // empty')
 check "POST /employees crea empleado y retorna id" '[ -n "$NEW_ID" ]'
 
@@ -132,8 +133,13 @@ CHAT=$(curl -s -X POST "$NEST/agent/chat" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"question\":\"¿Cuántos empleados hay activos?\",\"user_id\":$USER_ID,\"thread_id\":\"test-e2e\"}")
-ANSWER=$(echo "$CHAT" | jq -r '.answer // empty')
-check "POST /agent/chat retorna answer no vacío" '[ -n "$ANSWER" ]'
+CHAT_DETAIL=$(echo "$CHAT" | jq -r '.detail // empty')
+if [[ "$CHAT_DETAIL" == *"Límite"* ]]; then
+    echo "  ⚠ Rate limit de Groq — saltando prueba del agente (reintentar en ~60s)"
+else
+    ANSWER=$(echo "$CHAT" | jq -r '.answer // empty')
+    check "POST /agent/chat retorna answer no vacío" '[ -n "$ANSWER" ]'
+fi
 
 HIST=$(curl -s "$NEST/agent/history/$USER_ID?limit=5" \
     -H "Authorization: Bearer $TOKEN")

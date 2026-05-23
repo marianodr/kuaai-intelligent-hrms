@@ -9,8 +9,8 @@ _pool: ThreadedConnectionPool | None = None
 def init_pool(settings) -> None:
     global _pool
     _pool = ThreadedConnectionPool(
-        minconn=1,
-        maxconn=10,
+        minconn=2,
+        maxconn=20,
         host=settings.postgres_host,
         port=settings.postgres_port,
         dbname=settings.postgres_db,
