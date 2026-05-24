@@ -71,10 +71,13 @@ graph TB
         FAPI["🤖 Backend FastAPI\nRAG · Agente · Embeddings\n:8000"]
     end
 
+    subgraph MSG ["Mensajería"]
+        MQTT["📡 Mosquitto\nMQTT Broker\n:1883"]
+    end
+
     subgraph DATA ["Datos"]
         PG[("🐘 PostgreSQL + pgvector\n:5432")]
         MINIO["🪣 MinIO\nObject Storage\n:9000"]
-        MQTT["📡 Mosquitto\nMQTT Broker\n:1883"]
     end
 
     USER  -->|"HTTPS :3000"| FE
@@ -142,10 +145,13 @@ graph TB
             FAPI["🤖 backend-fastapi\nFastAPI :8000"]
         end
 
+        subgraph "Capa de mensajería"
+            MQTT["📡 mosquitto\nMQTT Broker\n:1883"]
+        end
+
         subgraph "Capa de datos"
             PG[("🐘 postgres\nPostgreSQL 16 + pgvector\n:5432")]
             MINIO["🪣 minio\nObject Storage\n:9000 / :9001"]
-            MQTT["📡 mosquitto\nMQTT Broker\n:1883"]
         end
 
         subgraph "Init jobs"
