@@ -315,7 +315,7 @@ Se eligió psycopg2 con `ThreadedConnectionPool` en lugar de asyncpg para evitar
 
 ## Pendientes para fases siguientes
 
-- [x] **Fase 4:** El frontend Next.js consume `POST /agent/chat` para el chat UI y `GET /agent/history/:user_id` para historial
+- [x] **Fase 4:** El frontend Next.js consume `POST /agent/chat` y `GET /agent/history/:user_id` vía NestJS (proxy)
 - [x] **Fase 4:** Upload de PDFs: el frontend sube a NestJS `POST /documents/upload` → NestJS hace proxy a FastAPI → FastAPI almacena en MinIO y registra en DB → frontend llama a `/documents/process` vía NestJS
 - [ ] Streaming de respuesta del agente (Server-Sent Events) para UX más fluida
 - [ ] Migrar MemorySaver a PostgreSQL checkpointer (`langgraph-checkpoint-postgres`) para persistencia entre reinicios

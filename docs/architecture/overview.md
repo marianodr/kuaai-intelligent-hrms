@@ -45,33 +45,49 @@ El agente LangChain orquesta dinámicamente múltiples herramientas para respond
 
 ---
 
-## Diagrama de contenedores (C4 — Nivel 2)
+## Diagrama de contenedores (Nivel 2)
 
 ```mermaid
-C4Container
-    title Kuaai HRMS — Contenedores (servicios)
+graph TB
+    USER["👤 Usuario\n(Admin / RRHH)"]
+    IOT["📟 Nodo IoT\n(Pico 2W + RC522)"]
+    GROQ["☁️ Groq API\n(Llama 3.1 8B)"]
 
-    Person(user, "Usuario\n(Admin / RRHH)")
-    System_Ext(groq, "Groq API\n(Llama 3.1 8B)")
-    System_Ext(iot, "Nodo IoT\n(Pico 2W + RC522)")
+    subgraph PRES ["Presentación"]
+        FE["🌐 Frontend\nNext.js + Tailwind + shadcn/ui\n:3000"]
+    end
 
-    Container(frontend, "Frontend", "Next.js 14 + Tailwind + shadcn/ui", "Interfaz web de usuario")
-    Container(nest, "Backend NestJS", "NestJS + TypeORM + JWT", "Auth, CRUD empleados, MQTT, Dashboard")
-    Container(fastapi, "Backend FastAPI", "FastAPI + LangChain + Groq", "RAG, ingestión documentos, agente IA")
-    ContainerDb(postgres, "PostgreSQL + pgvector", "PostgreSQL 16", "Datos relacionales y vectores de embeddings")
-    Container(minio, "MinIO", "Object Storage", "Almacena archivos PDF originales")
-    Container(mosquitto, "Mosquitto", "MQTT Broker", "Recibe eventos del nodo IoT")
+    subgraph APP ["Aplicación"]
+        NEST["⚙️ Backend NestJS\nAuth · CRUD · MQTT · Dashboard\n:3001"]
+        FAPI["🤖 Backend FastAPI\nRAG · Agente · Embeddings\n:8000"]
+    end
 
-    Rel(user, frontend, "Usa", "HTTPS :3000")
-    Rel(frontend, nest, "API REST (todas las rutas)", "HTTP :3001")
-    Rel(nest, fastapi, "Proxy (documentos + agente)", "HTTP :8000")
-    Rel(nest, postgres, "Leer/Escribir", "TCP :5432")
-    Rel(nest, minio, "Subir PDFs", "HTTP :9000")
-    Rel(nest, mosquitto, "Suscripción MQTT", "TCP :1883")
-    Rel(fastapi, postgres, "Leer/Escribir vectores", "TCP :5432")
-    Rel(fastapi, minio, "Descargar PDFs", "HTTP :9000")
-    Rel(fastapi, groq, "Inferencia LLM", "HTTPS")
-    Rel(iot, mosquitto, "Publica eventos RFID", "MQTT :1883")
+    subgraph DATA ["Datos"]
+        PG[("🐘 PostgreSQL + pgvector\n:5432")]
+        MINIO["🪣 MinIO\nObject Storage\n:9000"]
+        MQTT["📡 Mosquitto\nMQTT Broker\n:1883"]
+    end
+
+    USER  -->|"HTTPS :3000"| FE
+    FE    -->|"REST — todas las rutas"| NEST
+    NEST  -->|"proxy docs + agente"| FAPI
+    NEST  -->|"Leer/Escribir"| PG
+    NEST  -->|"Subir PDFs"| MINIO
+    NEST  -->|"subscribe"| MQTT
+    FAPI  -->|"vectores"| PG
+    FAPI  -->|"descargar PDFs"| MINIO
+    FAPI  -->|"inferencia LLM"| GROQ
+    IOT   -->|"publish RFID"| MQTT
+
+    style FE   fill:#3b82f6,color:#fff
+    style NEST fill:#16a34a,color:#fff
+    style FAPI fill:#dc2626,color:#fff
+    style PG   fill:#6366f1,color:#fff
+    style MINIO fill:#f59e0b,color:#fff
+    style MQTT fill:#8b5cf6,color:#fff
+    style USER fill:#0f172a,color:#fff
+    style IOT  fill:#0f172a,color:#fff
+    style GROQ fill:#374151,color:#fff
 ```
 
 ---

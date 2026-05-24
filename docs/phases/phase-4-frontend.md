@@ -33,7 +33,7 @@ apps/frontend/
 │   │   └── header.tsx             # Header con usuario y logout
 │   └── ui/                        # Componentes base shadcn/ui
 ├── lib/
-│   ├── api.ts                     # Cliente API tipado (NestJS + FastAPI)
+│   ├── api.ts                     # Cliente API tipado (todas las rutas vía NestJS)
 │   ├── auth.ts                    # Cookie + localStorage session helpers
 │   └── utils.ts                   # cn() helper
 └── types/

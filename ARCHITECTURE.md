@@ -23,58 +23,80 @@
 Kuaai combina tres patrones arquitectónicos:
 
 - **Event-Driven:** el nodo IoT publica eventos MQTT que NestJS consume asincrónicamente.
-- **Cliente-Servidor (3 capas):** Next.js → NestJS (CRUD/auth) y Next.js → FastAPI (RAG).
+- **Cliente-Servidor (3 capas con proxy):** Next.js habla **únicamente** con NestJS. NestJS actúa como API gateway: maneja auth, CRUD y dashboard directamente, y hace de proxy hacia FastAPI para documentos y chat.
 - **Agéntico (Agentic RAG):** el agente LangChain orquesta herramientas en tiempo de ejecución para responder consultas en lenguaje natural.
 
-### Diagrama C4 — Nivel 1: Contexto del sistema
+### Diagrama — Nivel 1: Contexto del sistema
 
 ```mermaid
-C4Context
-    title Kuaai HRMS — Contexto del sistema
+graph TB
+    subgraph USERS [" "]
+        ADMIN["👤 Administrador\nGestiona usuarios y configuración"]
+        RRHH["👤 Responsable de RRHH\nGestiona empleados y documentos"]
+        EMP["👷 Empleado\nRegistra asistencia RFID"]
+    end
 
-    Person(admin, "Administrador", "Gestiona usuarios RRHH y configuración global")
-    Person(rrhh, "Responsable de RRHH", "Gestiona empleados, documentos y consulta el agente")
-    Person(empleado, "Empleado", "Registra asistencia con tarjeta RFID")
+    KUAAI["🏢 Kuaai HRMS\nSistema de gestión de RRHH\ncon IoT y agente RAG inteligente"]
 
-    System(kuaai, "Kuaai HRMS", "Sistema de gestión de RRHH con IoT y agente RAG inteligente")
+    subgraph EXT [" "]
+        GROQ["☁️ Groq API\nLLM Llama 3.1 8B"]
+        IOT_CTX["📟 Nodo IoT\nRaspberry Pi Pico 2W"]
+    end
 
-    System_Ext(groq, "Groq API", "LLM Llama 3.1 8B para generación de respuestas")
-    System_Ext(rfid, "Nodo IoT\n(Raspberry Pi Pico 2W)", "Lee tarjetas RFID y publica eventos MQTT")
+    ADMIN -->|"HTTPS"| KUAAI
+    RRHH  -->|"HTTPS"| KUAAI
+    EMP   -->|"Acerca tarjeta RFID"| IOT_CTX
+    IOT_CTX -->|"Publica eventos MQTT"| KUAAI
+    KUAAI -->|"Genera respuestas en LN"| GROQ
 
-    Rel(admin, kuaai, "Usa", "HTTPS")
-    Rel(rrhh, kuaai, "Usa", "HTTPS")
-    Rel(empleado, rfid, "Acerca tarjeta RFID")
-    Rel(rfid, kuaai, "Publica eventos de asistencia", "MQTT")
-    Rel(kuaai, groq, "Genera respuestas en lenguaje natural", "HTTPS/REST")
+    style KUAAI fill:#1e40af,color:#fff
+    style GROQ  fill:#374151,color:#fff
+    style IOT_CTX fill:#374151,color:#fff
 ```
 
-### Diagrama C4 — Nivel 2: Contenedores
+### Diagrama — Nivel 2: Contenedores (servicios)
 
 ```mermaid
-C4Container
-    title Kuaai HRMS — Contenedores (servicios)
+graph TB
+    USER["👤 Usuario\n(Admin / RRHH)"]
+    IOT["📟 Nodo IoT\n(Pico 2W + RC522)"]
+    GROQ["☁️ Groq API\n(Llama 3.1 8B)"]
 
-    Person(user, "Usuario\n(Admin / RRHH)")
-    System_Ext(groq, "Groq API\n(Llama 3.1 8B)")
-    System_Ext(iot, "Nodo IoT\n(Pico 2W + RC522)")
+    subgraph PRES ["Presentación"]
+        FE["🌐 Frontend\nNext.js + Tailwind + shadcn/ui\n:3000"]
+    end
 
-    Container(frontend, "Frontend", "Next.js 14 + Tailwind + shadcn/ui", "Interfaz web de usuario")
-    Container(nest, "Backend NestJS", "NestJS + TypeORM + JWT", "Auth, CRUD empleados, MQTT, Dashboard")
-    Container(fastapi, "Backend FastAPI", "FastAPI + LangChain + Groq", "RAG, ingestión documentos, agente IA")
-    ContainerDb(postgres, "PostgreSQL + pgvector", "PostgreSQL 16", "Datos relacionales y vectores de embeddings")
-    Container(minio, "MinIO", "Object Storage", "Almacena archivos PDF originales")
-    Container(mosquitto, "Mosquitto", "MQTT Broker", "Recibe eventos del nodo IoT")
+    subgraph APP ["Aplicación"]
+        NEST["⚙️ Backend NestJS\nAuth · CRUD · MQTT · Dashboard\n:3001"]
+        FAPI["🤖 Backend FastAPI\nRAG · Agente · Embeddings\n:8000"]
+    end
 
-    Rel(user, frontend, "Usa", "HTTPS :3000")
-    Rel(frontend, nest, "API REST", "HTTP :3001")
-    Rel(frontend, fastapi, "API REST (RAG/Chat)", "HTTP :8000")
-    Rel(nest, postgres, "Leer/Escribir", "TCP :5432")
-    Rel(nest, minio, "Subir PDFs", "HTTP :9000")
-    Rel(nest, mosquitto, "Suscripción MQTT", "TCP :1883")
-    Rel(fastapi, postgres, "Leer/Escribir vectores", "TCP :5432")
-    Rel(fastapi, minio, "Descargar PDFs", "HTTP :9000")
-    Rel(fastapi, groq, "Inferencia LLM", "HTTPS")
-    Rel(iot, mosquitto, "Publica eventos RFID", "MQTT :1883")
+    subgraph DATA ["Datos"]
+        PG[("🐘 PostgreSQL + pgvector\n:5432")]
+        MINIO["🪣 MinIO\nObject Storage\n:9000"]
+        MQTT["📡 Mosquitto\nMQTT Broker\n:1883"]
+    end
+
+    USER  -->|"HTTPS :3000"| FE
+    FE    -->|"REST — todas las rutas"| NEST
+    NEST  -->|"proxy docs + agente"| FAPI
+    NEST  -->|"Leer/Escribir"| PG
+    NEST  -->|"Subir PDFs"| MINIO
+    NEST  -->|"subscribe"| MQTT
+    FAPI  -->|"vectores"| PG
+    FAPI  -->|"descargar PDFs"| MINIO
+    FAPI  -->|"inferencia LLM"| GROQ
+    IOT   -->|"publish RFID"| MQTT
+
+    style FE   fill:#3b82f6,color:#fff
+    style NEST fill:#16a34a,color:#fff
+    style FAPI fill:#dc2626,color:#fff
+    style PG   fill:#6366f1,color:#fff
+    style MINIO fill:#f59e0b,color:#fff
+    style MQTT fill:#8b5cf6,color:#fff
+    style USER fill:#0f172a,color:#fff
+    style IOT  fill:#0f172a,color:#fff
+    style GROQ fill:#374151,color:#fff
 ```
 
 ---
@@ -135,8 +157,8 @@ graph TB
     IOT["📟 Nodo IoT\nPico 2W + RFID"]
 
     HOST -->|"HTTP"| FE
-    FE -->|"REST"| NEST
-    FE -->|"REST"| FAPI
+    FE -->|"REST (todas las rutas)"| NEST
+    NEST -->|"proxy REST"| FAPI
     NEST -->|"psycopg2"| PG
     NEST -->|"HTTP"| MINIO
     NEST -->|"MQTT subscribe"| MQTT
@@ -398,6 +420,7 @@ sequenceDiagram
 sequenceDiagram
     actor U as Usuario
     participant FE as Next.js
+    participant N as NestJS (proxy)
     participant FA as FastAPI /agent/chat
     participant AG as Agente LangChain\n(create_react_agent)
     participant LLM as Groq\n(Llama 3.1 8B)
@@ -406,7 +429,8 @@ sequenceDiagram
     participant DB as chat_history
 
     U->>FE: Escribe pregunta en el chat
-    FE->>FA: POST /agent/chat\n{question, user_id, thread_id}
+    FE->>N: POST /agent/chat (JWT)\n{question, user_id, thread_id}
+    N->>FA: proxy → POST /agent/chat\n{question, user_id, thread_id}
 
     FA->>AG: invoke({messages: [user_question]},\nconfig={thread_id})
 
@@ -435,7 +459,8 @@ sequenceDiagram
 
     AG-->>FA: {messages: [..., AIMessage(answer)]}
     FA->>DB: INSERT chat_history (user, question)\nINSERT chat_history (assistant, answer)
-    FA-->>FE: {answer, thread_id}
+    FA-->>N: {answer, thread_id}
+    N-->>FE: {answer, thread_id}
     FE-->>U: Muestra respuesta del agente
 ```
 
