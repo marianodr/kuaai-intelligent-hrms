@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # FastAPI
     fastapi_port: int = 8000
 
+    # Docling
+    docling_ocr_enabled: bool = False
+
     # Logging
     log_level: str = "INFO"
     log_file: str = "logs/kuaai.log"

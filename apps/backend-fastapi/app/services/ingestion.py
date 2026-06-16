@@ -6,6 +6,7 @@ from docling.document_converter import DocumentConverter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app import database, minio_client, embeddings as emb_service
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,21 @@ _splitter = RecursiveCharacterTextSplitter(
     separators=["\n\n", "\n", ". ", " ", ""],
 )
 
-_converter = DocumentConverter()
+
+def _build_converter() -> DocumentConverter:
+    if not settings.docling_ocr_enabled:
+        return DocumentConverter()
+    try:
+        from docling.pipeline.standard_pdf_pipeline import PdfPipelineOptions
+        opts = PdfPipelineOptions(do_ocr=True)
+        logger.info("Docling: OCR activado")
+        return DocumentConverter(pipeline_options=opts)
+    except ImportError:
+        logger.warning("docling.pipeline.standard_pdf_pipeline no disponible; OCR desactivado")
+        return DocumentConverter()
+
+
+_converter = _build_converter()
 
 
 def process_document(document_id: str) -> None:
