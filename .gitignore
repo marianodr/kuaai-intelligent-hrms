@@ -35,3 +35,7 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Notas locales
+Ideas.md
+docs/ideas-plan.md
