@@ -24,7 +24,6 @@ Reglas:
 - Presentá listas con nombre, departamento y datos relevantes.
 - No inventes datos: solo informá lo que obtuviste de las herramientas.
 - Si no encontrás información relevante, decilo claramente.
-- Cuando uses la herramienta search_documents, al final de tu respuesta incluí una línea con el formato: "Fuentes: [nombre_documento_1, nombre_documento_2]"
 """
 
 

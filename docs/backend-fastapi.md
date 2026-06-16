@@ -43,7 +43,7 @@ Este servicio es llamado por el backend NestJS y por el frontend Next.js, nunca 
 | Extracción de texto de PDFs | Docling | 2.0 |
 | Chunking de texto | LangChain Text Splitters | 0.3 |
 | Embeddings | SentenceTransformers (`all-MiniLM-L6-v2`) | 3.0 |
-| LLM | Groq (llama-3.1-8b-instant) | — |
+| LLM | Groq (qwen/qwen3.6-27b) | — |
 | Agente IA | LangGraph ReAct | 0.2 |
 | Definición de herramientas | LangChain Core | 0.3 |
 
@@ -99,7 +99,7 @@ class Settings(BaseSettings):
 
     # Groq
     groq_api_key: str          # OBLIGATORIO — sin default
-    groq_model: str = "llama-3.1-8b-instant"
+    groq_model: str = "qwen/qwen3.6-27b"
 
     # SentenceTransformers
     embeddings_model: str = "all-MiniLM-L6-v2"
@@ -712,7 +712,7 @@ RUN apt-get install -y libpq-dev gcc g++ libgl1 libglib2.0-0
 | `MINIO_SECRET_KEY` | `kuaai_secret` | No | Secret key MinIO |
 | `MINIO_BUCKET_DOCUMENTS` | `documents` | No | Bucket para documentos PDF |
 | `GROQ_API_KEY` | — | **Sí** | API key de Groq |
-| `GROQ_MODEL` | `llama-3.1-8b-instant` | No | Modelo Groq a usar |
+| `GROQ_MODEL` | `qwen/qwen3.6-27b` | No | Modelo Groq a usar |
 | `EMBEDDINGS_MODEL` | `all-MiniLM-L6-v2` | No | Modelo SentenceTransformers |
 | `EMBEDDINGS_DIMENSIONS` | `384` | No | Dimensiones del vector |
 | `FASTAPI_PORT` | `8000` | No | Puerto de escucha |

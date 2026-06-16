@@ -2,7 +2,8 @@ import tempfile
 import os
 import time
 import logging
-from docling.document_converter import DocumentConverter
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.base_models import InputFormat
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app import database, minio_client, embeddings as emb_service
@@ -22,12 +23,14 @@ def _build_converter() -> DocumentConverter:
     if not settings.docling_ocr_enabled:
         return DocumentConverter()
     try:
-        from docling.pipeline.standard_pdf_pipeline import PdfPipelineOptions
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
         opts = PdfPipelineOptions(do_ocr=True)
         logger.info("Docling: OCR activado")
-        return DocumentConverter(pipeline_options=opts)
+        return DocumentConverter(
+            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
+        )
     except ImportError:
-        logger.warning("docling.pipeline.standard_pdf_pipeline no disponible; OCR desactivado")
+        logger.warning("docling.datamodel.pipeline_options no disponible; OCR desactivado")
         return DocumentConverter()
 
 
