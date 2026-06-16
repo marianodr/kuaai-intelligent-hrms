@@ -4,6 +4,7 @@ import type {
   CreateEmployeeDto, UpdateEmployeeDto,
   TodayAttendance, MonthlyAverage, TardinessReport,
   Document, ChatMessage, ChatResponse,
+  HrUser,
 } from '@/types'
 
 const NEST = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -95,4 +96,21 @@ export const agentApi = {
     }),
   history: (userId: number, limit = 50) =>
     request<ChatMessage[]>(`${NEST}/agent/history/${userId}?limit=${limit}`),
+}
+
+// ─── HR Users (admin) ──────────────────────────────────────────────────────
+export const usersApi = {
+  list: () => request<HrUser[]>(`${NEST}/users`),
+  create: (email: string, password: string, role: 'admin' | 'rrhh') =>
+    request<HrUser>(`${NEST}/users`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password, role }),
+    }),
+  update: (id: number, dto: Partial<{ email: string; password: string; role: string; is_active: boolean }>) =>
+    request<HrUser>(`${NEST}/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    }),
+  deactivate: (id: number) =>
+    request<HrUser>(`${NEST}/users/${id}/deactivate`, { method: 'PATCH' }),
 }

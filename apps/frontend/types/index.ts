@@ -103,3 +103,11 @@ export interface ChatResponse {
   answer: string
   thread_id: string
 }
+
+export interface HrUser {
+  id: number
+  email: string
+  role: 'admin' | 'rrhh'
+  is_active: boolean
+  created_at: string
+}
