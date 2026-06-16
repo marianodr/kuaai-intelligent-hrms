@@ -89,12 +89,17 @@ def _save_history(user_id: int, question: str, answer: str, thread_id: str | Non
 
 def get_history(user_id: int, limit: int = 50, thread_id: str | None = None) -> list[dict]:
     with database.get_cursor() as (cur, conn):
+        # Se ordena por id (no solo por created_at): el mensaje del usuario y
+        # la respuesta del agente se insertan en la misma transacción, y
+        # NOW() devuelve la hora de inicio de la transacción (igual para
+        # ambas filas), por lo que created_at por sí solo no alcanza para
+        # desempatar el orden cronológico real.
         if thread_id:
             cur.execute(
                 """SELECT role, content, created_at
                    FROM chat_history
                    WHERE user_id = %s AND thread_id = %s
-                   ORDER BY created_at DESC
+                   ORDER BY id DESC
                    LIMIT %s""",
                 (user_id, thread_id, limit),
             )
@@ -103,7 +108,7 @@ def get_history(user_id: int, limit: int = 50, thread_id: str | None = None) -> 
                 """SELECT role, content, created_at
                    FROM chat_history
                    WHERE user_id = %s
-                   ORDER BY created_at DESC
+                   ORDER BY id DESC
                    LIMIT %s""",
                 (user_id, limit),
             )
