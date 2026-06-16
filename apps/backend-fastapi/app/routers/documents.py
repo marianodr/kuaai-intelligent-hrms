@@ -1,3 +1,4 @@
+import unicodedata
 import uuid
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
@@ -8,6 +9,15 @@ from app.services.ingestion import process_document
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _fix_filename(name: str) -> str:
+    """Corrige nombres de archivo con doble encoding Latin-1/UTF-8 (ej: ContrataciÃ³n → Contratación)."""
+    try:
+        fixed = name.encode('latin-1').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        fixed = name
+    return unicodedata.normalize('NFC', fixed)
 
 
 class ProcessRequest(BaseModel):
@@ -36,8 +46,9 @@ async def upload_document(
     if len(pdf_bytes) == 0:
         raise HTTPException(status_code=400, detail="El archivo está vacío")
 
+    filename = _fix_filename(file.filename)
     doc_id = str(uuid.uuid4())
-    safe_name = file.filename.replace(" ", "_")
+    safe_name = filename.replace(" ", "_")
     minio_path = f"{doc_id}/{safe_name}"
 
     minio_client.upload_bytes(minio_path, pdf_bytes, content_type="application/pdf")
@@ -46,11 +57,11 @@ async def upload_document(
         cur.execute(
             """INSERT INTO documents (id, name, minio_path, status, uploaded_by)
                VALUES (%s, %s, %s, 'PROCESSING', %s)""",
-            (doc_id, file.filename, minio_path, uploaded_by),
+            (doc_id, filename, minio_path, uploaded_by),
         )
         conn.commit()
 
-    logger.info(f"Documento subido: {doc_id} ({file.filename}) por usuario {uploaded_by}")
+    logger.info(f"Documento subido: {doc_id} ({filename}) por usuario {uploaded_by}")
     return {"document_id": doc_id}
 
 
