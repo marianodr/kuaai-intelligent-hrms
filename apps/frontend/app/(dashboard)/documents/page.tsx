@@ -11,7 +11,8 @@ import { Card } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Upload, Trash2, RefreshCw, Check } from 'lucide-react'
+import { Upload, Trash2, RefreshCw, Check, Eye } from 'lucide-react'
+import { PdfViewer } from '@/components/documents/PdfViewer'
 
 // ─── Configuración del pipeline ────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ export default function DocumentsPage() {
   const [loading, setLoading]     = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError]         = useState('')
+  const [viewing, setViewing]     = useState<Document | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const user = getUser()
 
@@ -157,6 +159,13 @@ export default function DocumentsPage() {
 
   return (
     <div className="space-y-4">
+      {viewing && (
+        <PdfViewer
+          documentId={viewing.id}
+          documentName={viewing.name}
+          onClose={() => setViewing(null)}
+        />
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Documentos</h1>
         <div className="flex gap-2">
@@ -216,14 +225,25 @@ export default function DocumentsPage() {
                       {new Date(doc.created_at).toLocaleString('es-AR')}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(doc.id, doc.name)}
-                        disabled={doc.status === 'PROCESSING'}
-                      >
-                        <Trash2 className="text-destructive" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setViewing(doc)}
+                          disabled={doc.status !== 'READY'}
+                          title="Ver PDF"
+                        >
+                          <Eye />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(doc.id, doc.name)}
+                          disabled={doc.status === 'PROCESSING'}
+                        >
+                          <Trash2 className="text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
 

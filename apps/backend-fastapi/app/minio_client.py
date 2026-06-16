@@ -37,3 +37,15 @@ def upload_bytes(object_name: str, data: bytes, content_type: str = "application
 
 def delete_object(object_name: str) -> None:
     _client.remove_object(_bucket, object_name)
+
+
+def get_bytes(object_name: str) -> tuple[bytes, str]:
+    """Returns (content_bytes, content_type)."""
+    response = _client.get_object(_bucket, object_name)
+    try:
+        data = response.read()
+        content_type = response.headers.get("Content-Type", "application/octet-stream")
+        return data, content_type
+    finally:
+        response.close()
+        response.release_conn()

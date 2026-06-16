@@ -2,6 +2,7 @@ import unicodedata
 import uuid
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app import database, minio_client
@@ -113,6 +114,31 @@ def get_document(document_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     return dict(row)
+
+
+@router.get("/{document_id}/download")
+def download_document(document_id: str):
+    """Descarga el PDF del documento directamente desde MinIO (proxy para el frontend)."""
+    with database.get_cursor() as (cur, conn):
+        cur.execute(
+            "SELECT minio_path, name FROM documents WHERE id = %s",
+            (document_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    try:
+        data, content_type = minio_client.get_bytes(row["minio_path"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error al obtener archivo: {e}")
+
+    safe_name = row["name"].encode("utf-8").decode("ascii", errors="replace").replace(" ", "_")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
+    )
 
 
 @router.delete("/{document_id}")

@@ -136,3 +136,9 @@ export const usersApi = {
   deactivate: (id: number) =>
     request<HrUser>(`${NEST}/users/${id}/deactivate`, { method: 'PATCH' }),
 }
+
+// ─── Document download ─────────────────────────────────────────────────────
+export function getDocumentDownloadUrl(documentId: string): string {
+  const token = getToken()
+  return `${NEST}/documents/${documentId}/download${token ? `?token=${encodeURIComponent(token)}` : ''}`
+}

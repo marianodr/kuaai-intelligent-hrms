@@ -34,6 +34,14 @@ export class ProxyService {
     return this.request<T>('PATCH', path, body);
   }
 
+  async downloadBinary(path: string): Promise<{ data: Buffer; contentType: string }> {
+    const res = await fetch(`${this.fapiUrl}${path}`);
+    if (!res.ok) throw new HttpException({ detail: `Error ${res.status}` }, res.status);
+    const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
+    const arrayBuffer = await res.arrayBuffer();
+    return { data: Buffer.from(arrayBuffer), contentType };
+  }
+
   async uploadFile<T>(file: UploadedPdf, uploadedBy: string): Promise<T> {
     const form = new FormData();
     form.append(
