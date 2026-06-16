@@ -10,6 +10,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Send, Bot, User, Plus, Trash2, MessageSquare, Pencil, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+const DEFAULT_THREAD_NAME = 'Nueva conversación'
+
+/** Deriva un título corto a partir de la primera pregunta de la conversación. */
+function deriveThreadName(question: string): string {
+  const cleaned = question.replace(/\s+/g, ' ').trim()
+  if (cleaned.length <= 40) return cleaned
+  return `${cleaned.slice(0, 40).trimEnd()}…`
+}
+
 export default function ChatPage() {
   const user = getUser()
   const [threads, setThreads]           = useState<ConversationThread[]>([])
@@ -104,6 +113,7 @@ export default function ChatPage() {
   async function handleSend() {
     const question = input.trim()
     if (!question || loading || !user || !activeThread) return
+    const isFirstMessage = messages.length === 0
 
     const userMsg: ChatMessage = { role: 'user', content: question }
     setMessages((prev) => [...prev, userMsg])
@@ -121,6 +131,11 @@ export default function ChatPage() {
             : t,
         ),
       )
+      // Generar automáticamente un nombre para la conversación a partir de
+      // la primera pregunta, si todavía tiene el nombre por defecto.
+      if (isFirstMessage && activeThread.name === DEFAULT_THREAD_NAME) {
+        applyRename(activeThread.id, deriveThreadName(question))
+      }
     } catch (err: unknown) {
       const errMsg: ChatMessage = {
         role: 'assistant',
