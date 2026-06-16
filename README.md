@@ -79,6 +79,24 @@ Servicios y puertos:
 Esto crea:
 - 8 empleados con asistencias de mayo 2026
 
+> **Nota:** El usuario `admin` también se crea automáticamente al arrancar el stack, leyendo
+> `ADMIN_EMAIL` y `ADMIN_PASSWORD` del `.env`. El seed solo es necesario para los empleados
+> y sus registros de asistencia de prueba.
+
+#### Lógica del seed de asistencias
+
+El seed genera registros desde 2026-03-02 hasta `CURRENT_DATE` usando lógica determinista
+(`hashtext`) para reproducibilidad. Parámetros:
+
+| Parámetro | Valor |
+|-----------|-------|
+| Tasa de asistencia | 88 % de días hábiles por empleado |
+| Tasa de tardanzas | 12 % de los presentes |
+| Hora entrada puntual | 07:45–08:15 |
+| Hora entrada con tardanza | 08:16–08:44 |
+| Registro de salida | Solo para días anteriores a hoy (16:00 hs) |
+| Días excluidos | Sábados y domingos |
+
 ### 4. Acceder al sistema
 
 Abrir http://localhost:3000 e iniciar sesión con las credenciales de arriba.
