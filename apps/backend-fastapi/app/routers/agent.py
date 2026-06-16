@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel
 
 from app.services import agent_service
@@ -27,6 +28,12 @@ def chat(req: ChatRequest):
     try:
         answer = agent_service.chat(req.question, req.user_id, thread_id)
         return ChatResponse(answer=answer, thread_id=thread_id)
+    except GraphRecursionError:
+        return ChatResponse(
+            answer="No logré encontrar información suficiente para responder tu consulta. "
+                   "Intentá reformularla o consultá directamente la documentación.",
+            thread_id=thread_id,
+        )
     except Exception as e:
         err_str = str(e)
         if "rate_limit_exceeded" in err_str or "Rate limit" in err_str:
