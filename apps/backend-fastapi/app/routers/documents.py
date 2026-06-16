@@ -1,6 +1,7 @@
 import unicodedata
 import uuid
 import logging
+from urllib.parse import quote
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -133,11 +134,24 @@ def download_document(document_id: str):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Error al obtener archivo: {e}")
 
-    safe_name = row["name"].encode("utf-8").decode("ascii", errors="replace").replace(" ", "_")
+    # Content-Disposition debe ir en Latin-1: un fallback ASCII (sin tildes,
+    # para clientes viejos) + filename* en UTF-8 percent-encoded (RFC 6266)
+    # para que los navegadores modernos muestren el nombre real.
+    ascii_fallback = (
+        unicodedata.normalize("NFKD", row["name"])
+        .encode("ascii", errors="ignore")
+        .decode("ascii")
+        .replace(" ", "_")
+    ) or "documento.pdf"
+    encoded_name = quote(row["name"])
     return Response(
         content=data,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
+        headers={
+            "Content-Disposition": (
+                f'inline; filename="{ascii_fallback}"; filename*=UTF-8\'\'{encoded_name}'
+            )
+        },
     )
 
 
