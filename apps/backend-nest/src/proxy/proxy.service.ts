@@ -30,6 +30,10 @@ export class ProxyService {
     return this.request<T>('DELETE', path);
   }
 
+  patch<T>(path: string, body: unknown): Promise<T> {
+    return this.request<T>('PATCH', path, body);
+  }
+
   async uploadFile<T>(file: UploadedPdf, uploadedBy: string): Promise<T> {
     const form = new FormData();
     form.append(

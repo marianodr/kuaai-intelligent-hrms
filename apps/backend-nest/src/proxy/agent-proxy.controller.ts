@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProxyService } from './proxy.service';
 
@@ -18,7 +18,37 @@ export class AgentProxyController {
   history(
     @Param('userId') userId: string,
     @Query('limit') limit = '50',
+    @Query('thread_id') threadId?: string,
   ) {
-    return this.proxy.get(`/agent/history/${userId}?limit=${limit}`);
+    const qs = threadId
+      ? `/agent/history/${userId}?limit=${limit}&thread_id=${threadId}`
+      : `/agent/history/${userId}?limit=${limit}`;
+    return this.proxy.get(qs);
+  }
+}
+
+@UseGuards(JwtAuthGuard)
+@Controller('threads')
+export class ThreadsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @Post()
+  create(@Body() body: { user_id: number; name?: string }) {
+    return this.proxy.post('/threads/', body);
+  }
+
+  @Get(':userId')
+  list(@Param('userId') userId: string) {
+    return this.proxy.get(`/threads/${userId}`);
+  }
+
+  @Patch(':threadId/rename')
+  rename(@Param('threadId') threadId: string, @Body() body: { name: string }) {
+    return this.proxy.patch(`/threads/${threadId}/rename`, body);
+  }
+
+  @Delete(':threadId')
+  remove(@Param('threadId') threadId: string) {
+    return this.proxy.delete(`/threads/${threadId}`);
   }
 }

@@ -104,6 +104,13 @@ export interface ChatResponse {
   thread_id: string
 }
 
+export interface ConversationThread {
+  id: string
+  name: string
+  created_at: string
+  last_message_at: string
+}
+
 export interface HrUser {
   id: number
   email: string

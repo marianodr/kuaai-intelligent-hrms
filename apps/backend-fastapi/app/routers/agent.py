@@ -45,6 +45,6 @@ def chat(req: ChatRequest):
 
 
 @router.get("/history/{user_id}")
-def get_history(user_id: int, limit: int = 50):
-    """Retorna el historial de conversación de un usuario desde la DB."""
-    return agent_service.get_history(user_id, limit)
+def get_history(user_id: int, limit: int = 50, thread_id: str | None = None):
+    """Retorna el historial de conversación de un usuario (opcionalmente filtrado por hilo)."""
+    return agent_service.get_history(user_id, limit, thread_id)

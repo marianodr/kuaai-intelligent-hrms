@@ -15,6 +15,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { MqttModule } from './mqtt/mqtt.module';
 import { ProxyModule } from './proxy/proxy.module';
 import { SeederModule } from './seeder/seeder.module';
+import { CleanupModule } from './cleanup/cleanup.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SeederModule } from './seeder/seeder.module';
     MqttModule,
     ProxyModule,
     SeederModule,
+    CleanupModule,
   ],
 })
 export class AppModule {}

@@ -65,32 +65,47 @@ def chat(question: str, user_id: int, thread_id: str) -> str:
     )
     answer = result["messages"][-1].content
 
-    _save_history(user_id, question, answer)
+    _save_history(user_id, question, answer, thread_id)
     return answer
 
 
-def _save_history(user_id: int, question: str, answer: str) -> None:
+def _save_history(user_id: int, question: str, answer: str, thread_id: str | None = None) -> None:
     with database.get_cursor(dict_cursor=False) as (cur, conn):
         cur.execute(
-            "INSERT INTO chat_history (user_id, role, content) VALUES (%s, %s, %s)",
-            (user_id, "user", question),
+            "INSERT INTO chat_history (user_id, role, content, thread_id) VALUES (%s, %s, %s, %s)",
+            (user_id, "user", question, thread_id),
         )
         cur.execute(
-            "INSERT INTO chat_history (user_id, role, content) VALUES (%s, %s, %s)",
-            (user_id, "assistant", answer),
+            "INSERT INTO chat_history (user_id, role, content, thread_id) VALUES (%s, %s, %s, %s)",
+            (user_id, "assistant", answer, thread_id),
         )
+        if thread_id:
+            cur.execute(
+                "UPDATE conversation_threads SET last_message_at = NOW() WHERE id = %s",
+                (thread_id,),
+            )
         conn.commit()
 
 
-def get_history(user_id: int, limit: int = 50) -> list[dict]:
+def get_history(user_id: int, limit: int = 50, thread_id: str | None = None) -> list[dict]:
     with database.get_cursor() as (cur, conn):
-        cur.execute(
-            """SELECT role, content, created_at
-               FROM chat_history
-               WHERE user_id = %s
-               ORDER BY created_at DESC
-               LIMIT %s""",
-            (user_id, limit),
-        )
+        if thread_id:
+            cur.execute(
+                """SELECT role, content, created_at
+                   FROM chat_history
+                   WHERE user_id = %s AND thread_id = %s
+                   ORDER BY created_at DESC
+                   LIMIT %s""",
+                (user_id, thread_id, limit),
+            )
+        else:
+            cur.execute(
+                """SELECT role, content, created_at
+                   FROM chat_history
+                   WHERE user_id = %s
+                   ORDER BY created_at DESC
+                   LIMIT %s""",
+                (user_id, limit),
+            )
         rows = cur.fetchall()
     return [dict(r) for r in reversed(rows)]

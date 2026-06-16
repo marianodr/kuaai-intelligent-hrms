@@ -4,7 +4,7 @@ import type {
   CreateEmployeeDto, UpdateEmployeeDto,
   TodayAttendance, MonthlyAverage, TardinessReport,
   Document, ChatMessage, ChatResponse,
-  HrUser,
+  ConversationThread, HrUser,
 } from '@/types'
 
 const NEST = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -94,8 +94,30 @@ export const agentApi = {
       method: 'POST',
       body: JSON.stringify({ question, user_id: userId, thread_id: threadId }),
     }),
-  history: (userId: number, limit = 50) =>
-    request<ChatMessage[]>(`${NEST}/agent/history/${userId}?limit=${limit}`),
+  history: (userId: number, threadId?: string, limit = 50) => {
+    const qs = threadId
+      ? `${NEST}/agent/history/${userId}?limit=${limit}&thread_id=${threadId}`
+      : `${NEST}/agent/history/${userId}?limit=${limit}`
+    return request<ChatMessage[]>(qs)
+  },
+}
+
+// ─── Conversation threads ──────────────────────────────────────────────────
+export const threadsApi = {
+  list: (userId: number) =>
+    request<ConversationThread[]>(`${NEST}/threads/${userId}`),
+  create: (userId: number, name = 'Nueva conversación') =>
+    request<ConversationThread>(`${NEST}/threads`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, name }),
+    }),
+  rename: (threadId: string, name: string) =>
+    request<ConversationThread>(`${NEST}/threads/${threadId}/rename`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+  delete: (threadId: string) =>
+    request<{ message: string }>(`${NEST}/threads/${threadId}`, { method: 'DELETE' }),
 }
 
 // ─── HR Users (admin) ──────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ from app.config import settings
 from app.logging_config import setup_logging
 from app import database, minio_client, embeddings as emb_service
 from app.services.agent_service import init_agent
-from app.routers import documents, agent
+from app.routers import documents, agent, threads
 
 setup_logging(settings.log_level, settings.log_file)
 
@@ -32,6 +32,7 @@ app.add_middleware(
 
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(agent.router, prefix="/agent", tags=["agent"])
+app.include_router(threads.router, prefix="/threads", tags=["threads"])
 
 
 @app.get("/health")
