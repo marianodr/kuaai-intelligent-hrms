@@ -5,8 +5,9 @@ import { agentApi, threadsApi } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import type { ChatMessage, ConversationThread } from '@/types'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Send, Bot, User, Plus, Trash2, MessageSquare } from 'lucide-react'
+import { Send, Bot, User, Plus, Trash2, MessageSquare, Pencil, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function ChatPage() {
@@ -17,6 +18,8 @@ export default function ChatPage() {
   const [input, setInput]               = useState('')
   const [loading, setLoading]           = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
+  const [editingName, setEditingName]   = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const fetchThreads = useCallback(async () => {
@@ -76,6 +79,28 @@ export default function ChatPage() {
     }
   }
 
+  async function applyRename(threadId: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const updated = await threadsApi.rename(threadId, trimmed)
+    setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, ...updated } : t)))
+    setActiveThread((prev) => (prev?.id === threadId ? { ...prev, ...updated } : prev))
+  }
+
+  function startEditing(thread: ConversationThread) {
+    setEditingThreadId(thread.id)
+    setEditingName(thread.name)
+  }
+
+  async function confirmEditing() {
+    if (editingThreadId) await applyRename(editingThreadId, editingName)
+    setEditingThreadId(null)
+  }
+
+  function cancelEditing() {
+    setEditingThreadId(null)
+  }
+
   async function handleSend() {
     const question = input.trim()
     if (!question || loading || !user || !activeThread) return
@@ -130,31 +155,70 @@ export default function ChatPage() {
               No hay conversaciones.
             </p>
           )}
-          {threads.map((t) => (
-            <div
-              key={t.id}
-              className={cn(
-                'group flex items-center justify-between gap-1 px-3 py-2 cursor-pointer text-sm transition-colors',
-                activeThread?.id === t.id
-                  ? 'bg-primary-light text-primary'
-                  : 'hover:bg-surface text-muted-foreground hover:text-foreground',
-              )}
-              onClick={() => selectThread(t)}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <MessageSquare className="size-3.5 shrink-0" />
-                <span className="truncate text-xs">{t.name}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-5 shrink-0 opacity-0 group-hover:opacity-100"
-                onClick={(e) => { e.stopPropagation(); deleteThread(t) }}
+          {threads.map((t) => {
+            const isEditing = editingThreadId === t.id
+            return (
+              <div
+                key={t.id}
+                className={cn(
+                  'group flex items-center justify-between gap-1 px-3 py-2 text-sm transition-colors',
+                  isEditing ? '' : 'cursor-pointer',
+                  activeThread?.id === t.id
+                    ? 'bg-primary-light text-primary'
+                    : 'hover:bg-surface text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => !isEditing && selectThread(t)}
               >
-                <Trash2 className="size-3 text-destructive" />
-              </Button>
-            </div>
-          ))}
+                {isEditing ? (
+                  <div className="flex items-center gap-1 min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      autoFocus
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmEditing()
+                        if (e.key === 'Escape') cancelEditing()
+                      }}
+                      className="h-6 text-xs px-1.5"
+                    />
+                    <Button variant="ghost" size="icon" className="size-5 shrink-0" onClick={confirmEditing}>
+                      <Check className="size-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="size-5 shrink-0" onClick={cancelEditing}>
+                      <X className="size-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MessageSquare className="size-3.5 shrink-0" />
+                      <span className="truncate text-xs">{t.name}</span>
+                    </div>
+                    <div className="flex shrink-0 opacity-0 group-hover:opacity-100">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-5 shrink-0"
+                        onClick={(e) => { e.stopPropagation(); startEditing(t) }}
+                        title="Renombrar"
+                      >
+                        <Pencil className="size-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-5 shrink-0"
+                        onClick={(e) => { e.stopPropagation(); deleteThread(t) }}
+                        title="Eliminar"
+                      >
+                        <Trash2 className="size-3 text-destructive" />
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 
