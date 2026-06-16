@@ -43,11 +43,12 @@ def search_documents(query: str) -> str:
     if not rows:
         return "No se encontraron documentos relevantes para la consulta."
 
-    results = [
-        {"fragment": r["content"], "documento": r["document_name"], "similitud": float(r["similarity"])}
-        for r in rows
-    ]
-    return json.dumps(results, ensure_ascii=False)
+    parts = []
+    for r in rows:
+        source_header = f"[Fuente: {r['document_name']} | similitud: {float(r['similarity'])}]"
+        parts.append(f"{source_header}\n{r['content']}")
+
+    return "\n\n---\n\n".join(parts)
 
 
 @tool
