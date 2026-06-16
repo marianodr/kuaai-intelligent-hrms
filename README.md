@@ -77,8 +77,6 @@ Servicios y puertos:
 ```
 
 Esto crea:
-- **admin@kuaai.com** / `admin123`
-- **rrhh@kuaai.com** / `rrhh123`
 - 8 empleados con asistencias de mayo 2026
 
 ### 4. Acceder al sistema

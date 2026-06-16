@@ -3,12 +3,8 @@
 -- Ejecutar después de init.sql (solo en desarrollo/demo)
 -- =============================================================
 
--- Usuarios del sistema
--- Contraseñas: admin123 / rrhh123 (bcrypt rounds=10)
-INSERT INTO users (email, password, role) VALUES
-  ('admin@kuaai.com',  '$2b$10$ah1gJllmMZZ1fTC/GZBM/uVX9pdQEwcqVSSFAg6vqYkTzV9c4QGZC', 'admin'),
-  ('rrhh@kuaai.com',   '$2b$10$jufUOx.pH1BPts1h/IEVbeFwEZqLQikw6C.LipO6wnSrM.J..tg/G', 'rrhh')
-ON CONFLICT (email) DO NOTHING;
+-- Usuarios del sistema — admin y rrhh se crean automáticamente al startup
+-- utilizando ADMIN_EMAIL, ADMIN_PASSWORD y RRHH_EMAIL, RRHH_PASSWORD del .env
 
 -- Empleados (rfid_code = UID decimal que devuelve el RC522)
 INSERT INTO employees (first_name, last_name, email, legajo, rfid_code, department) VALUES

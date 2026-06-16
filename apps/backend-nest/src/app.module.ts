@@ -14,6 +14,7 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MqttModule } from './mqtt/mqtt.module';
 import { ProxyModule } from './proxy/proxy.module';
+import { SeederModule } from './seeder/seeder.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ProxyModule } from './proxy/proxy.module';
     DashboardModule,
     MqttModule,
     ProxyModule,
+    SeederModule,
   ],
 })
 export class AppModule {}
