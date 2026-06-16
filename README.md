@@ -203,6 +203,18 @@ python scripts/generate_hr_docs.py
 
 Genera 4 PDFs en `docs/hr-pdfs/` con contenido detallado sobre vacaciones, contratación, licencias y beneficios. Subir desde la sección `/documents` del frontend para mejorar las respuestas del agente.
 
+### Evaluación del pipeline RAG (RAGAS)
+
+```bash
+# Instalar dependencias de evaluación
+pip install -r scripts/requirements-eval.txt
+
+# Ejecutar evaluación (requiere stack corriendo)
+python scripts/eval_rag.py
+```
+
+Evalúa el pipeline RAG con las métricas `faithfulness`, `answer_relevancy` y `context_recall` de la librería RAGAS.
+
 ---
 
 ## Desarrollo local (sin Docker)
