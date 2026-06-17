@@ -1,7 +1,8 @@
-# Dependencias para evaluación del pipeline RAG (Sprint 4 — #13)
-# Instalar en el entorno virtual del backend FastAPI:
-#   pip install -r scripts/requirements-eval.txt
-
-ragas>=0.1.0
+ragas>=0.2.0
+langchain-groq>=0.2.0
+sentence-transformers>=3.0.0
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.1
 datasets>=2.0.0
-python-dotenv>=1.0.0
+pandas>=2.0.0
+tabulate>=0.9.0

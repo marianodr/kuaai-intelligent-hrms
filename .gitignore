@@ -39,3 +39,6 @@ Thumbs.db
 # Notas locales
 Ideas.md
 docs/ideas-plan.md
+scripts/.venv/
+scripts/dataset.json
+scripts/results_*.json
