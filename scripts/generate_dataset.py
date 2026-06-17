@@ -22,17 +22,20 @@ from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
-from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+from dotenv import load_dotenv, dotenv_values as _dv
+
+_env_file = Path(__file__).parent.parent / ".env"
+load_dotenv(_env_file)                  # shell vars ganan (útil para POSTGRES_HOST=localhost)
+_file = _dv(_env_file)                  # lectura directa del archivo para claves sensibles
 
 POSTGRES_HOST     = os.getenv("POSTGRES_HOST", "localhost")
 POSTGRES_PORT     = int(os.getenv("POSTGRES_PORT", "5432"))
 POSTGRES_DB       = os.getenv("POSTGRES_DB", "kuaai")
 POSTGRES_USER     = os.getenv("POSTGRES_USER", "kuaai_user")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "kuaai_password")
-GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
+GROQ_API_KEY      = _file.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL        = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
 
 PROMPT = """Dado el siguiente fragmento de un documento de RRHH empresarial, generá UNA pregunta concreta que un empleado podría hacerle al asistente de RRHH y que este fragmento responde total o parcialmente. Incluí también la respuesta esperada basada EXCLUSIVAMENTE en el fragmento.
@@ -77,16 +80,27 @@ def sample_chunks(conn, chunks_per_doc: int) -> list[dict]:
     return sampled
 
 
+def _extract_json(text: str) -> dict | None:
+    """Extrae el primer objeto JSON válido del texto, ignorando thinking tags y texto extra."""
+    # Remover bloques <think>...</think> del modelo
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    start = text.find('{')
+    if start == -1:
+        return None
+    try:
+        obj, _ = json.JSONDecoder().raw_decode(text[start:])
+        return obj if isinstance(obj, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
 def generate_qa(llm: ChatGroq, chunk: dict) -> dict | None:
     prompt = PROMPT.format(content=chunk["content"][:1500])
     try:
         text = llm.invoke(prompt).content.strip()
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if not match:
-            print(f"    ⚠ No se encontró JSON en la respuesta")
-            return None
-        data = json.loads(match.group())
-        if not data.get("question") or not data.get("answer"):
+        data = _extract_json(text)
+        if not data or not data.get("question") or not data.get("answer"):
+            print(f"    ⚠ No se pudo extraer JSON válido")
             return None
         return {
             "question":        data["question"],

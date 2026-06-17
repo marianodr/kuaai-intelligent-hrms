@@ -27,25 +27,29 @@ Variables de entorno (desde .env):
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
-from dotenv import load_dotenv
 from langchain_core.embeddings import Embeddings
-from langchain_groq import ChatGroq
+from langchain_groq import ChatGroq  # usado para la generación de respuestas RAG
 from sentence_transformers import SentenceTransformer
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+from dotenv import load_dotenv, dotenv_values as _dv
+
+_env_file = Path(__file__).parent.parent / ".env"
+load_dotenv(_env_file)                  # shell vars ganan (útil para POSTGRES_HOST=localhost)
+_file = _dv(_env_file)                  # lectura directa del archivo para claves sensibles
 
 POSTGRES_HOST     = os.getenv("POSTGRES_HOST", "localhost")
 POSTGRES_PORT     = int(os.getenv("POSTGRES_PORT", "5432"))
 POSTGRES_DB       = os.getenv("POSTGRES_DB", "kuaai")
 POSTGRES_USER     = os.getenv("POSTGRES_USER", "kuaai_user")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "kuaai_password")
-GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
+GROQ_API_KEY      = _file.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL        = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
 EMBEDDINGS_MODEL  = os.getenv("EMBEDDINGS_MODEL", "all-MiniLM-L6-v2")
 
@@ -102,22 +106,27 @@ def retrieve(conn, st_model: SentenceTransformer, question: str, top_k: int) -> 
 
 def generate(llm: ChatGroq, question: str, contexts: list[str]) -> str:
     ctx = "\n\n---\n\n".join(contexts) if contexts else "Sin contexto disponible."
-    return llm.invoke(GENERATION_PROMPT.format(context=ctx, question=question)).content.strip()
+    text = llm.invoke(GENERATION_PROMPT.format(context=ctx, question=question)).content
+    # qwen3.6-27b incluye <think>...</think> — removemos antes de pasar a RAGAS
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    return text
 
 
 # ── Evaluación ──────────────────────────────────────────────────────────────
 
 def run(dataset_path: str, top_k: int) -> None:
     try:
-        from ragas import EvaluationDataset, SingleTurnSample, evaluate
+        import instructor
+        from groq import Groq
+        from ragas import SingleTurnSample
+        from ragas.llms import llm_factory
+        from ragas.embeddings import HuggingFaceEmbeddings as RagasHFEmbeddings
         from ragas.metrics.collections import (
             AnswerRelevancy,
             Faithfulness,
-            LLMContextPrecisionWithReference,
-            LLMContextRecall,
+            ContextPrecisionWithReference,
+            ContextRecall,
         )
-        from ragas.embeddings import LangchainEmbeddingsWrapper
-        from ragas.llms import LangchainLLMWrapper
     except ImportError as e:
         print(f"ERROR: {e}")
         print("Instalá con: pip install -r scripts/requirements-eval.txt")
@@ -137,10 +146,22 @@ def run(dataset_path: str, top_k: int) -> None:
     print(f"Groq model:       {GROQ_MODEL}")
     print(f"Top-k retrieval:  {top_k}\n")
 
-    llm        = ChatGroq(model=GROQ_MODEL, api_key=GROQ_API_KEY, temperature=0)
-    st_model   = SentenceTransformer(EMBEDDINGS_MODEL)
-    ragas_llm  = LangchainLLMWrapper(llm)
-    ragas_emb  = LangchainEmbeddingsWrapper(STEmbeddings(EMBEDDINGS_MODEL))
+    # LLM para pipeline RAG (generación de respuestas)
+    # Permite override con EVAL_GEN_MODEL para evitar rate limits por modelo
+    GEN_MODEL = os.getenv("EVAL_GEN_MODEL", GROQ_MODEL)
+    print(f"Generation model:  {GEN_MODEL}")
+    llm      = ChatGroq(model=GEN_MODEL, api_key=GROQ_API_KEY, temperature=0)
+    st_model = SentenceTransformer(EMBEDDINGS_MODEL)
+
+    # LLM para RAGAS como juez — necesita cliente async y un modelo que soporte JSON mode
+    # qwen3.6-27b falla con instructor JSON schema; llama-3.3-70b-versatile funciona
+    from groq import AsyncGroq
+    RAGAS_JUDGE_MODEL = os.getenv("RAGAS_JUDGE_MODEL", "llama-3.3-70b-versatile")
+    async_groq        = AsyncGroq(api_key=GROQ_API_KEY)
+    instructor_client = instructor.from_groq(async_groq, mode=instructor.Mode.JSON)
+    ragas_llm         = llm_factory(RAGAS_JUDGE_MODEL, provider="groq", client=instructor_client)
+    print(f"RAGAS judge model: {RAGAS_JUDGE_MODEL}")
+    ragas_emb          = RagasHFEmbeddings(model=EMBEDDINGS_MODEL)
     conn       = get_conn()
 
     print("Ejecutando pipeline RAG...\n")
@@ -161,17 +182,42 @@ def run(dataset_path: str, top_k: int) -> None:
     conn.close()
 
     print(f"\nEjecutando RAGAS sobre {len(samples)} muestras...")
-    metrics = [
-        Faithfulness(llm=ragas_llm),
-        AnswerRelevancy(llm=ragas_llm, embeddings=ragas_emb),
-        LLMContextPrecisionWithReference(llm=ragas_llm),
-        LLMContextRecall(llm=ragas_llm),
-    ]
-    result = evaluate(dataset=EvaluationDataset(samples=samples), metrics=metrics)
-    df = result.to_pandas()
+    faithfulness_m   = Faithfulness(llm=ragas_llm)
+    answer_rel_m     = AnswerRelevancy(llm=ragas_llm, embeddings=ragas_emb)
+    ctx_precision_m  = ContextPrecisionWithReference(llm=ragas_llm)
+    ctx_recall_m     = ContextRecall(llm=ragas_llm)
 
-    # Columnas numéricas = métricas
-    metric_cols = df.select_dtypes(include="number").columns.tolist()
+    async def score_sample(s: SingleTurnSample) -> dict:
+        scores = {}
+        for name, coro in [
+            ("faithfulness",              faithfulness_m.ascore(user_input=s.user_input, response=s.response, retrieved_contexts=s.retrieved_contexts)),
+            ("answer_relevancy",          answer_rel_m.ascore(user_input=s.user_input, response=s.response)),
+            ("context_precision",         ctx_precision_m.ascore(user_input=s.user_input, reference=s.reference, retrieved_contexts=s.retrieved_contexts)),
+            ("context_recall",            ctx_recall_m.ascore(user_input=s.user_input, retrieved_contexts=s.retrieved_contexts, reference=s.reference)),
+        ]:
+            try:
+                result = await coro
+                scores[name] = float(result.score)
+            except Exception as e:
+                scores[name] = None
+                print(f"    ⚠ {name}: {e}")
+        return scores
+
+    async def score_all() -> list[dict]:
+        rows = []
+        for i, s in enumerate(samples):
+            print(f"  [{i+1}/{len(samples)}] scoring '{s.user_input[:60]}'...")
+            row = await score_sample(s)
+            row["question"] = s.user_input
+            rows.append(row)
+        return rows
+
+    import asyncio
+    rows = asyncio.run(score_all())
+
+    import pandas as pd
+    df = pd.DataFrame(rows)
+    metric_cols = ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]
     means = df[metric_cols].mean()
 
     print("\n" + "=" * 58)
@@ -179,8 +225,9 @@ def run(dataset_path: str, top_k: int) -> None:
     print("=" * 58)
     for col in metric_cols:
         label = col.replace("_", " ").title()
-        bar   = "█" * int(means[col] * 20)
-        print(f"  {label:<35} {means[col]:.3f}  {bar}")
+        val   = means[col]
+        bar   = "█" * int(val * 20) if not pd.isna(val) else "N/A"
+        print(f"  {label:<35} {val:.3f}  {bar}")
     print("=" * 58)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
