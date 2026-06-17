@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, FileText, MessageSquare, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, MessageSquare, ShieldCheck, ScanSearch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getUser } from '@/lib/auth'
 
@@ -13,6 +13,7 @@ const nav = [
   { href: '/documents', icon: FileText, label: 'Documentos', roles: ['admin', 'rrhh'] },
   { href: '/chat', icon: MessageSquare, label: 'Asistente IA', roles: ['admin', 'rrhh'] },
   { href: '/admin/users', icon: ShieldCheck, label: 'Usuarios', roles: ['admin'] },
+  { href: '/admin/chunks', icon: ScanSearch, label: 'Inspector RAG', roles: ['admin'] },
 ]
 
 export function Sidebar() {

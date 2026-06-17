@@ -5,6 +5,7 @@ import type {
   TodayAttendance, MonthlyAverage, TardinessReport,
   Document, ChatMessage, ChatResponse,
   ConversationThread, HrUser,
+  DocumentChunk, ChunkSearchResult,
 } from '@/types'
 
 const NEST = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -135,6 +136,17 @@ export const usersApi = {
     }),
   deactivate: (id: number) =>
     request<HrUser>(`${NEST}/users/${id}/deactivate`, { method: 'PATCH' }),
+}
+
+// ─── Chunks / RAG Inspector (admin) ────────────────────────────────────────
+export const chunksApi = {
+  list: (documentId: string) =>
+    request<DocumentChunk[]>(`${NEST}/documents/${documentId}/chunks`),
+  search: (query: string, documentId?: string, limit = 8) =>
+    request<ChunkSearchResult[]>(`${NEST}/documents/chunks/search`, {
+      method: 'POST',
+      body: JSON.stringify({ query, document_id: documentId, limit }),
+    }),
 }
 
 // ─── Document download ─────────────────────────────────────────────────────

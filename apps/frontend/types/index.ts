@@ -118,3 +118,35 @@ export interface HrUser {
   is_active: boolean
   created_at: string
 }
+
+export interface EmbeddingStats {
+  dims: number
+  norm: number
+  max: number
+  min: number
+  sparsity: number
+  sample: number[]
+}
+
+export interface DocumentChunk {
+  id: number
+  chunk_index: number
+  content: string
+  char_count: number
+  estimated_tokens: number
+  embedding: EmbeddingStats
+  created_at: string
+}
+
+export interface ChunkSearchResult {
+  id: number
+  chunk_index: number
+  content: string
+  char_count: number
+  estimated_tokens: number
+  document_id: string
+  document_name: string
+  similarity: number
+  embedding: EmbeddingStats
+  created_at: string
+}

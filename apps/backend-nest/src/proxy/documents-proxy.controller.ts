@@ -45,6 +45,18 @@ export class DocumentsProxyController {
     return this.proxy.post('/documents/process', body);
   }
 
+  @Get(':id/chunks')
+  getChunks(@Param('id') id: string) {
+    return this.proxy.get(`/documents/${id}/chunks`);
+  }
+
+  @Post('chunks/search')
+  searchChunks(
+    @Body() body: { query: string; document_id?: string; limit?: number },
+  ) {
+    return this.proxy.post('/documents/chunks/search', body);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.proxy.delete(`/documents/${id}`);

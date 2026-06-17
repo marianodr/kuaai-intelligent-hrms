@@ -9,7 +9,8 @@ export function proxy(request: NextRequest) {
   const isDashboard = pathname.startsWith('/dashboard') ||
     pathname.startsWith('/employees') ||
     pathname.startsWith('/documents') ||
-    pathname.startsWith('/chat')
+    pathname.startsWith('/chat') ||
+    pathname.startsWith('/admin')
 
   if (!token && isDashboard) {
     return NextResponse.redirect(new URL('/login', request.url))

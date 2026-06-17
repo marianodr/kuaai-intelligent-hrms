@@ -1,3 +1,4 @@
+import math
 import unicodedata
 import uuid
 import logging
@@ -6,7 +7,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File,
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from app import database, minio_client
+from app import database, minio_client, embeddings as emb_service
 from app.services.ingestion import process_document
 
 logger = logging.getLogger(__name__)
@@ -153,6 +154,114 @@ def download_document(document_id: str):
             )
         },
     )
+
+
+class ChunkSearchRequest(BaseModel):
+    query: str
+    document_id: str | None = None
+    limit: int = 8
+
+
+def _embedding_stats(embedding_text: str) -> dict:
+    vals = [float(x) for x in embedding_text.strip("[]").split(",")]
+    n = len(vals)
+    norm = math.sqrt(sum(v * v for v in vals))
+    max_v = max(vals)
+    min_v = min(vals)
+    sparsity = round(sum(1 for v in vals if abs(v) < 0.01) / n, 4)
+    return {
+        "dims": n,
+        "norm": round(norm, 4),
+        "max": round(max_v, 6),
+        "min": round(min_v, 6),
+        "sparsity": sparsity,
+        "sample": [round(v, 6) for v in vals[:8]],
+    }
+
+
+@router.get("/{document_id}/chunks")
+def get_document_chunks(document_id: str):
+    """Devuelve todos los chunks de un documento con métricas de embedding. Solo admin."""
+    with database.get_cursor() as (cur, conn):
+        cur.execute("SELECT 1 FROM documents WHERE id = %s", (document_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Documento no encontrado")
+        cur.execute(
+            """SELECT id, chunk_index, content, created_at,
+                      LENGTH(content) AS char_count,
+                      embedding::text AS embedding_text
+               FROM document_chunks
+               WHERE document_id = %s
+               ORDER BY chunk_index""",
+            (document_id,),
+        )
+        rows = cur.fetchall()
+    return [
+        {
+            "id": r["id"],
+            "chunk_index": r["chunk_index"],
+            "content": r["content"],
+            "char_count": r["char_count"],
+            "estimated_tokens": r["char_count"] // 4,
+            "embedding": _embedding_stats(r["embedding_text"]),
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+
+
+@router.post("/chunks/search")
+def search_chunks(req: ChunkSearchRequest):
+    """Búsqueda semántica sobre chunks. Devuelve resultados ordenados por similitud."""
+    embedding = emb_service.get_embedding(req.query)
+    emb_str = emb_service.embedding_to_pg_str(embedding)
+
+    with database.get_cursor() as (cur, conn):
+        if req.document_id:
+            cur.execute(
+                """SELECT dc.id, dc.chunk_index, dc.content, dc.created_at,
+                          d.id AS document_id, d.name AS document_name,
+                          LENGTH(dc.content) AS char_count,
+                          dc.embedding::text AS embedding_text,
+                          ROUND((1 - (dc.embedding <=> %s::vector))::numeric, 4) AS similarity
+                   FROM document_chunks dc
+                   JOIN documents d ON dc.document_id = d.id
+                   WHERE dc.document_id = %s AND d.status = 'READY'
+                   ORDER BY dc.embedding <=> %s::vector
+                   LIMIT %s""",
+                (emb_str, req.document_id, emb_str, req.limit),
+            )
+        else:
+            cur.execute(
+                """SELECT dc.id, dc.chunk_index, dc.content, dc.created_at,
+                          d.id AS document_id, d.name AS document_name,
+                          LENGTH(dc.content) AS char_count,
+                          dc.embedding::text AS embedding_text,
+                          ROUND((1 - (dc.embedding <=> %s::vector))::numeric, 4) AS similarity
+                   FROM document_chunks dc
+                   JOIN documents d ON dc.document_id = d.id
+                   WHERE d.status = 'READY'
+                   ORDER BY dc.embedding <=> %s::vector
+                   LIMIT %s""",
+                (emb_str, emb_str, req.limit),
+            )
+        rows = cur.fetchall()
+
+    return [
+        {
+            "id": r["id"],
+            "chunk_index": r["chunk_index"],
+            "content": r["content"],
+            "char_count": r["char_count"],
+            "estimated_tokens": r["char_count"] // 4,
+            "document_id": str(r["document_id"]),
+            "document_name": r["document_name"],
+            "similarity": float(r["similarity"]),
+            "embedding": _embedding_stats(r["embedding_text"]),
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
 
 
 @router.delete("/{document_id}")
