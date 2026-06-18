@@ -111,7 +111,7 @@ graph TB
 ```
 kuaai-intelligent-hrms/
 ├── apps/
-│   ├── frontend/           # Next.js 14 + Tailwind + shadcn/ui
+│   ├── frontend/           # Next.js 16 + Tailwind + shadcn/ui
 │   ├── backend-nest/       # NestJS — Auth, CRUD, MQTT, Dashboard
 │   ├── backend-fastapi/    # FastAPI — RAG, Agente, Embeddings
 │   └── iot-node/           # MicroPython — Raspberry Pi Pico 2W
