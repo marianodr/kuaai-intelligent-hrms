@@ -9,8 +9,65 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Send, Bot, User, Plus, Trash2, MessageSquare, Pencil, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import ReactMarkdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const DEFAULT_THREAD_NAME = 'Nueva conversación'
+
+/** react-markdown pasa un `node` (AST) a cada renderer; lo descartamos antes de spread-earlo sobre el elemento DOM. */
+function stripNode<T extends { node?: unknown }>(props: T) {
+  const { node, ...rest } = props
+  void node
+  return rest
+}
+
+const markdownComponents: Components = {
+  p: (props) => <p className="mb-2 last:mb-0" {...stripNode(props)} />,
+  ul: (props) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0" {...stripNode(props)} />,
+  ol: (props) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0" {...stripNode(props)} />,
+  a: (props) => (
+    <a className="underline text-primary" target="_blank" rel="noopener noreferrer" {...stripNode(props)} />
+  ),
+  blockquote: (props) => (
+    <blockquote className="mb-2 border-l-2 border-foreground/20 pl-2 italic last:mb-0" {...stripNode(props)} />
+  ),
+  h1: (props) => <p className="mb-1 text-base font-semibold" {...stripNode(props)} />,
+  h2: (props) => <p className="mb-1 text-base font-semibold" {...stripNode(props)} />,
+  h3: (props) => <p className="mb-1 text-sm font-semibold" {...stripNode(props)} />,
+  code: ({ className, children, ...props }) => {
+    const isBlock = /language-/.test(className ?? '')
+    const rest = stripNode(props)
+    if (isBlock) {
+      return (
+        <pre className="mb-2 overflow-x-auto rounded-md bg-foreground/10 p-2 text-xs last:mb-0">
+          <code className={className} {...rest}>{children}</code>
+        </pre>
+      )
+    }
+    return (
+      <code className="rounded bg-foreground/10 px-1 py-0.5 text-xs" {...rest}>
+        {children}
+      </code>
+    )
+  },
+  table: (props) => (
+    <div className="mb-2 overflow-x-auto last:mb-0">
+      <table className="border-collapse text-xs" {...stripNode(props)} />
+    </div>
+  ),
+  th: (props) => (
+    <th className="border border-foreground/20 px-2 py-1 text-left font-medium" {...stripNode(props)} />
+  ),
+  td: (props) => <td className="border border-foreground/20 px-2 py-1" {...stripNode(props)} />,
+}
+
+function AssistantMessage({ content }: { content: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      {content}
+    </ReactMarkdown>
+  )
+}
 
 /** Deriva un título corto a partir de la primera pregunta de la conversación. */
 function deriveThreadName(question: string): string {
@@ -283,12 +340,16 @@ export default function ChatPage() {
                 {msg.role === 'user' ? <User className="size-4" /> : <Bot className="size-4" />}
               </div>
               <div className={cn(
-                'max-w-[75%] rounded-xl px-3 py-2 leading-relaxed whitespace-pre-wrap',
+                'max-w-[75%] rounded-xl px-3 py-2 leading-relaxed',
                 msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground rounded-tr-none'
+                  ? 'whitespace-pre-wrap bg-primary text-primary-foreground rounded-tr-none'
                   : 'bg-muted rounded-tl-none',
               )}>
-                {msg.content}
+                {msg.role === 'assistant' ? (
+                  <AssistantMessage content={msg.content} />
+                ) : (
+                  msg.content
+                )}
               </div>
             </div>
           ))}
