@@ -67,6 +67,8 @@ export interface MonthlyAverage {
   year: number
   workdays: number
   average_attendance_pct: number
+  total_present: number
+  total_expected: number
 }
 
 export interface TardinessEntry {

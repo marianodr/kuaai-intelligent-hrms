@@ -47,13 +47,28 @@ export class DashboardService {
   async getMonthlyAverage(month: number, year: number) {
     const daysInMonth = new Date(year, month, 0).getDate();
     const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month - 1, daysInMonth, 23, 59, 59);
+    const monthEnd = new Date(year, month - 1, daysInMonth, 23, 59, 59);
+
+    // Si el mes consultado es el actual, los días esperados solo llegan
+    // hasta hoy (no se puede esperar asistencia de días futuros).
+    const now = new Date();
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+    const end = isCurrentMonth && now < monthEnd ? now : monthEnd;
 
     const activeEmployees = await this.employeesService.findActiveEmployees();
     const total = activeEmployees.length;
-    if (total === 0) return { month, year, average_attendance_pct: 0 };
+    if (total === 0) {
+      return {
+        month,
+        year,
+        workdays: 0,
+        average_attendance_pct: 0,
+        total_present: 0,
+        total_expected: 0,
+      };
+    }
 
-    // Días laborables (lun-vie) del mes
+    // Días laborables (lun-vie) transcurridos del mes
     let workdays = 0;
     const cursor = new Date(start);
     while (cursor <= end) {
@@ -75,7 +90,14 @@ export class DashboardService {
     const totalPresent = entries.length;
     const pct = totalExpected > 0 ? Math.round((totalPresent / totalExpected) * 100) : 0;
 
-    return { month, year, workdays, average_attendance_pct: pct };
+    return {
+      month,
+      year,
+      workdays,
+      average_attendance_pct: pct,
+      total_present: totalPresent,
+      total_expected: totalExpected,
+    };
   }
 
   async getTardinessReport(month: number, year: number) {

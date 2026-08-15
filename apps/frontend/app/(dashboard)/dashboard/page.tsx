@@ -5,28 +5,84 @@ import { dashboardApi } from '@/lib/api'
 import type { TodayAttendance, MonthlyAverage, TardinessReport } from '@/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Users, UserCheck, UserX, TrendingUp } from 'lucide-react'
+import { PieChart, Pie, Cell } from 'recharts'
 
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ElementType
-  label: string
-  value: string | number
-  sub?: string
-}) {
+const RECURRING_TARDINESS_THRESHOLD = 3
+
+function AttendanceDonutCard({ today }: { today: TodayAttendance | null }) {
+  const present = today?.present ?? 0
+  const absent = today?.absent ?? 0
+  const total = present + absent
+  const data = total > 0 ? [{ name: 'Presentes', value: present }, { name: 'Ausentes', value: absent }] : [{ name: 'Sin datos', value: 1 }]
+  const colors = total > 0 ? ['#22c55e', '#ef4444'] : ['#e5e7eb']
+  const presentPct = total > 0 ? Math.round((present / total) * 100) : 0
+  const absentPct = total > 0 ? Math.round((absent / total) * 100) : 0
+
   return (
-    <Card className="p-5 flex items-start gap-4">
-      <div className="rounded-md bg-primary-light p-2">
-        <Icon className="size-5 text-primary" />
+    <Card className="p-5">
+      <p className="text-sm font-medium text-center">Asistencia del Día</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
+        <PieChart width={120} height={120}>
+          <Pie
+            data={data}
+            dataKey="value"
+            innerRadius={35}
+            outerRadius={55}
+            startAngle={90}
+            endAngle={-270}
+            stroke="none"
+          >
+            {data.map((entry, i) => (
+              <Cell key={entry.name} fill={colors[i]} />
+            ))}
+          </Pie>
+        </PieChart>
+        <div className="flex items-center justify-center gap-4 text-xs">
+          <span className="flex items-center gap-1">
+            <span className="size-2 rounded-full bg-green-500" />
+            Presentes: <strong>{present}</strong> ({presentPct}%)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="size-2 rounded-full bg-red-500" />
+            Ausentes: <strong>{absent}</strong> ({absentPct}%)
+          </span>
+        </div>
       </div>
-      <div>
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-2xl font-bold">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </Card>
+  )
+}
+
+function MonthlyAverageCard({ monthly }: { monthly: MonthlyAverage | null }) {
+  return (
+    <Card className="p-5">
+      <p className="text-sm font-medium text-center">Promedio de Asistencia Mensual</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-1 text-center">
+        <p className="text-4xl font-bold text-primary">
+          {monthly ? `${monthly.average_attendance_pct}%` : '—'}
+        </p>
+        <p className="text-xs text-muted-foreground">Mes actual</p>
+        {monthly && (
+          <p className="text-xs text-muted-foreground">
+            {monthly.total_present} / {monthly.total_expected} asistencias
+          </p>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+function RecurringTardinessCard({ tardiness }: { tardiness: TardinessReport | null }) {
+  const recurringCount =
+    tardiness?.tardiness.filter((t) => t.count >= RECURRING_TARDINESS_THRESHOLD).length ?? 0
+
+  return (
+    <Card className="p-5">
+      <p className="text-sm font-medium text-center">Tardanzas Recurrentes (Mes)</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-1 text-center">
+        <p className="text-4xl font-bold text-destructive">{tardiness ? recurringCount : '—'}</p>
+        <p className="text-xs text-muted-foreground">
+          Empleados con {RECURRING_TARDINESS_THRESHOLD}+ tardanzas
+        </p>
       </div>
     </Card>
   )
@@ -66,29 +122,10 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Dashboard</h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          icon={Users}
-          label="Empleados activos"
-          value={today?.total_active ?? '—'}
-        />
-        <MetricCard
-          icon={UserCheck}
-          label="Presentes hoy"
-          value={today?.present ?? '—'}
-          sub={today ? `${today.attendance_pct}% de asistencia` : undefined}
-        />
-        <MetricCard
-          icon={UserX}
-          label="Ausentes hoy"
-          value={today?.absent ?? '—'}
-        />
-        <MetricCard
-          icon={TrendingUp}
-          label="Promedio mensual"
-          value={monthly ? `${monthly.average_attendance_pct}%` : '—'}
-          sub={monthly ? `${monthly.workdays} días hábiles` : undefined}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <AttendanceDonutCard today={today} />
+        <MonthlyAverageCard monthly={monthly} />
+        <RecurringTardinessCard tardiness={tardiness} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
