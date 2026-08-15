@@ -1,0 +1,37 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam backgroundColor white
+skinparam usecase {
+    BackgroundColor white
+    BorderColor #2563EB
+    ArrowColor #374151
+}
+
+actor "Empleado" as EMP
+actor "Responsable\nde RRHH" as RRHH
+actor "Administrador" as ADMIN
+
+RRHH <|-- ADMIN
+
+rectangle "MVP de HRMS Inteligente" {
+    usecase "Registrar asistencia" as CU01
+    usecase "Iniciar sesión" as CU02
+    usecase "Gestionar documentación" as CU03
+    usecase "Consultar base\nde conocimiento" as CU04
+    usecase "Visualizar dashboard" as CU05
+    usecase "Gestionar empleados" as CU06
+    usecase "Gestionar usuarios RRHH" as CU07
+    usecase "Inspeccionar pipeline RAG" as CU08
+}
+
+EMP --> CU01
+RRHH --> CU02
+RRHH --> CU03
+RRHH --> CU04
+RRHH --> CU05
+RRHH --> CU06
+ADMIN --> CU07
+ADMIN --> CU08
+
+@enduml
