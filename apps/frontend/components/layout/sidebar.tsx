@@ -21,9 +21,10 @@ export function Sidebar() {
   const user = getUser()
 
   return (
-    <aside className="flex h-full w-64 flex-col border-r bg-white">
-      <div className="flex h-16 items-center border-b px-6 overflow-hidden">
+    <aside className="flex h-full w-56 flex-col border-r bg-white">
+      <div className="flex h-16 items-center gap-2 border-b px-4 overflow-hidden">
         <Image src="/logo.png" alt="Kuaai Intelligent HRMS" height={36} width={36} className="h-9 w-auto" priority />
+        <span className="text-lg font-semibold text-primary">Kuaai</span>
       </div>
       <nav className="flex-1 space-y-0.5 p-3">
         {nav

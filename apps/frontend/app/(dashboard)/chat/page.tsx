@@ -214,7 +214,7 @@ export default function ChatPage() {
   return (
     <div className="flex h-full max-h-[calc(100vh-8rem)] gap-3">
       {/* ── Thread list ─────────────────────────────── */}
-      <div className="w-52 shrink-0 flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="w-64 shrink-0 flex flex-col border rounded-xl bg-white overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2 border-b">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Conversaciones</span>
           <Button variant="ghost" size="icon" className="size-7" onClick={createNewThread} title="Nueva conversación">
