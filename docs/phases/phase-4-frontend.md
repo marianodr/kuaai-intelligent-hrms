@@ -10,6 +10,8 @@
 | Tailwind CSS | 4.x | Utility-first CSS |
 | shadcn/ui + @base-ui/react | — | Componentes accesibles |
 | lucide-react | 1.14.x | Iconografía |
+| recharts | 3.10.x | Donut chart de asistencia del día en el dashboard |
+| react-markdown + remark-gfm | 10.1.x / 4.0.x | Renderizado de Markdown (GFM) en las respuestas del chat |
 
 ## Estructura de archivos
 
