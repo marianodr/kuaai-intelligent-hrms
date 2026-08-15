@@ -4,6 +4,16 @@ import { Repository, Between } from 'typeorm';
 import { AttendanceRecord } from '../attendance/entities/attendance-record.entity';
 import { EmployeesService } from '../employees/employees.service';
 
+/**
+ * TEMPORAL: permite fijar la fecha de referencia del dashboard vía la env var
+ * FAKE_TODAY (ej. "2026-08-14") para demos/QA fuera de horario laboral.
+ * Rama de corta duración — no mergear a master sin quitar este override.
+ */
+function getReferenceNow(): Date {
+  const fake = process.env.FAKE_TODAY;
+  return fake ? new Date(fake) : new Date();
+}
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -13,7 +23,7 @@ export class DashboardService {
   ) {}
 
   async getTodayAttendance() {
-    const now = new Date();
+    const now = getReferenceNow();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
@@ -51,7 +61,7 @@ export class DashboardService {
 
     // Si el mes consultado es el actual, los días esperados solo llegan
     // hasta hoy (no se puede esperar asistencia de días futuros).
-    const now = new Date();
+    const now = getReferenceNow();
     const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
     const end = isCurrentMonth && now < monthEnd ? now : monthEnd;
 
