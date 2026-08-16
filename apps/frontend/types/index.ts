@@ -71,6 +71,15 @@ export interface MonthlyAverage {
   total_expected: number
 }
 
+export interface RecentEntry {
+  id: number
+  employee_id: number
+  name: string
+  department?: string
+  timestamp: string
+  is_late: boolean
+}
+
 export interface TardinessEntry {
   employee_id: number
   name: string
@@ -82,6 +91,20 @@ export interface TardinessReport {
   month: number
   year: number
   tardiness: TardinessEntry[]
+}
+
+export interface AbsenceEntry {
+  employee_id: number
+  name: string
+  department?: string
+  count: number
+}
+
+export interface MonthlyAbsences {
+  month: number
+  year: number
+  workdays: number
+  absences: AbsenceEntry[]
 }
 
 export type DocumentStatus = 'PROCESSING' | 'READY' | 'ERROR'

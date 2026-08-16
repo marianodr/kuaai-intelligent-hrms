@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { dashboardApi } from '@/lib/api'
-import type { TodayAttendance, MonthlyAverage, TardinessReport } from '@/types'
+import type { TodayAttendance, MonthlyAverage, TardinessReport, RecentEntry, MonthlyAbsences } from '@/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { PieChart, Pie, Cell } from 'recharts'
 
 const RECURRING_TARDINESS_THRESHOLD = 3
+const RECENT_ENTRIES_POLL_INTERVAL_MS = 20_000
 
 function AttendanceDonutCard({ today }: { today: TodayAttendance | null }) {
   const present = today?.present ?? 0
@@ -79,11 +81,78 @@ function RecurringTardinessCard({ tardiness }: { tardiness: TardinessReport | nu
     <Card className="p-5">
       <p className="text-sm font-medium text-center">Tardanzas Recurrentes (Mes)</p>
       <div className="flex flex-1 flex-col items-center justify-center gap-1 text-center">
-        <p className="text-4xl font-bold text-destructive">{tardiness ? recurringCount : '—'}</p>
+        <p className="text-4xl font-bold text-amber-500">{tardiness ? recurringCount : '—'}</p>
         <p className="text-xs text-muted-foreground">
           Empleados con {RECURRING_TARDINESS_THRESHOLD}+ tardanzas
         </p>
       </div>
+    </Card>
+  )
+}
+
+function RecentEntriesCard({ entries }: { entries: RecentEntry[] }) {
+  return (
+    <Card className="p-5">
+      <h2 className="font-medium mb-3">Registro de hoy (Tiempo real)</h2>
+      {entries.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin fichajes todavía hoy</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Empleado</TableHead>
+              <TableHead>Sector</TableHead>
+              <TableHead>Fecha y hora</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {entries.map((entry) => (
+              <TableRow key={entry.id}>
+                <TableCell>{entry.name}</TableCell>
+                <TableCell>{entry.department ?? '—'}</TableCell>
+                <TableCell>
+                  {new Date(entry.timestamp).toLocaleString('es-AR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </TableCell>
+                <TableCell>
+                  {entry.is_late && <Badge variant="warning">Tardanza</Badge>}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </Card>
+  )
+}
+
+function MonthlyAbsencesCard({ absences }: { absences: MonthlyAbsences | null }) {
+  return (
+    <Card className="p-5">
+      <h2 className="font-medium mb-3">Ausencias del mes</h2>
+      {!absences || absences.absences.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin ausencias registradas</p>
+      ) : (
+        <div className="space-y-2">
+          {absences.absences.slice(0, 5).map((entry) => (
+            <div key={entry.employee_id} className="flex items-center justify-between text-sm">
+              <span>{entry.name}</span>
+              <div className="flex items-center gap-2">
+                {entry.department && (
+                  <Badge variant="secondary">{entry.department}</Badge>
+                )}
+                <Badge variant="destructive">{entry.count}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   )
 }
@@ -93,6 +162,8 @@ export default function DashboardPage() {
   const [today, setToday] = useState<TodayAttendance | null>(null)
   const [monthly, setMonthly] = useState<MonthlyAverage | null>(null)
   const [tardiness, setTardiness] = useState<TardinessReport | null>(null)
+  const [absences, setAbsences] = useState<MonthlyAbsences | null>(null)
+  const [recentEntries, setRecentEntries] = useState<RecentEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -100,14 +171,25 @@ export default function DashboardPage() {
       dashboardApi.today(),
       dashboardApi.monthlyAverage(now.getMonth() + 1, now.getFullYear()),
       dashboardApi.tardiness(now.getMonth() + 1, now.getFullYear()),
+      dashboardApi.monthlyAbsences(now.getMonth() + 1, now.getFullYear()),
+      dashboardApi.recentEntries(),
     ])
-      .then(([t, m, ta]) => {
+      .then(([t, m, ta, ab, re]) => {
         setToday(t)
         setMonthly(m)
         setTardiness(ta)
+        setAbsences(ab)
+        setRecentEntries(re)
       })
       .finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      dashboardApi.recentEntries().then(setRecentEntries).catch(() => {})
+    }, RECENT_ENTRIES_POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
   }, [])
 
   if (loading) {
@@ -128,24 +210,8 @@ export default function DashboardPage() {
         <RecurringTardinessCard tardiness={tardiness} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-5">
-          <h2 className="font-medium mb-3">Ausentes hoy</h2>
-          {today?.absent_employees.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todos presentes</p>
-          ) : (
-            <div className="space-y-2">
-              {today?.absent_employees.map((emp) => (
-                <div key={emp.id} className="flex items-center justify-between text-sm">
-                  <span>{emp.name}</span>
-                  {emp.department && (
-                    <Badge variant="secondary">{emp.department}</Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <RecentEntriesCard entries={recentEntries} />
 
         <Card className="p-5">
           <h2 className="font-medium mb-3">Tardanzas del mes</h2>
@@ -160,13 +226,15 @@ export default function DashboardPage() {
                     {entry.department && (
                       <Badge variant="secondary">{entry.department}</Badge>
                     )}
-                    <Badge variant="destructive">{entry.count}</Badge>
+                    <Badge variant="warning">{entry.count}</Badge>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </Card>
+
+        <MonthlyAbsencesCard absences={absences} />
       </div>
     </div>
   )

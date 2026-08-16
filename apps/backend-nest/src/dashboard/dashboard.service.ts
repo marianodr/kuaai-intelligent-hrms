@@ -4,6 +4,18 @@ import { Repository, Between } from 'typeorm';
 import { AttendanceRecord } from '../attendance/entities/attendance-record.entity';
 import { EmployeesService } from '../employees/employees.service';
 
+/**
+ * TEMPORAL: permite fijar la fecha de referencia del dashboard vía la env var
+ * FAKE_TODAY (ej. "2026-08-14") para demos/QA fuera de horario laboral.
+ * Rama de corta duración — no mergear a master sin quitar este override.
+ */
+function getReferenceNow(): Date {
+  const fake = process.env.FAKE_TODAY;
+  // "YYYY-MM-DD" a secas se parsea como medianoche UTC; con TZ=America/Argentina
+  // eso cae en el día anterior local. Se fija al mediodía para evitar el corrimiento.
+  return fake ? new Date(`${fake}T12:00:00`) : new Date();
+}
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -13,7 +25,7 @@ export class DashboardService {
   ) {}
 
   async getTodayAttendance() {
-    const now = new Date();
+    const now = getReferenceNow();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
@@ -44,31 +56,18 @@ export class DashboardService {
     };
   }
 
-  async getMonthlyAverage(month: number, year: number) {
+  /** Días laborables transcurridos del mes y entradas (día, empleado) en ese rango. */
+  private async getElapsedMonthData(month: number, year: number) {
     const daysInMonth = new Date(year, month, 0).getDate();
     const start = new Date(year, month - 1, 1);
     const monthEnd = new Date(year, month - 1, daysInMonth, 23, 59, 59);
 
-    // Si el mes consultado es el actual, los días esperados solo llegan
-    // hasta hoy (no se puede esperar asistencia de días futuros).
-    const now = new Date();
+    // Si el mes consultado es el actual, el rango solo llega hasta hoy
+    // (no se puede esperar asistencia de días futuros).
+    const now = getReferenceNow();
     const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
     const end = isCurrentMonth && now < monthEnd ? now : monthEnd;
 
-    const activeEmployees = await this.employeesService.findActiveEmployees();
-    const total = activeEmployees.length;
-    if (total === 0) {
-      return {
-        month,
-        year,
-        workdays: 0,
-        average_attendance_pct: 0,
-        total_present: 0,
-        total_expected: 0,
-      };
-    }
-
-    // Días laborables (lun-vie) transcurridos del mes
     let workdays = 0;
     const cursor = new Date(start);
     while (cursor <= end) {
@@ -84,8 +83,26 @@ export class DashboardService {
       .where('a.record_type = :type', { type: 'ENTRADA' })
       .andWhere('a.timestamp BETWEEN :start AND :end', { start, end })
       .groupBy('day, a.employee_id')
-      .getRawMany();
+      .getRawMany<{ day: string; employee_id: number }>();
 
+    return { workdays, entries };
+  }
+
+  async getMonthlyAverage(month: number, year: number) {
+    const activeEmployees = await this.employeesService.findActiveEmployees();
+    const total = activeEmployees.length;
+    if (total === 0) {
+      return {
+        month,
+        year,
+        workdays: 0,
+        average_attendance_pct: 0,
+        total_present: 0,
+        total_expected: 0,
+      };
+    }
+
+    const { workdays, entries } = await this.getElapsedMonthData(month, year);
     const totalExpected = total * workdays;
     const totalPresent = entries.length;
     const pct = totalExpected > 0 ? Math.round((totalPresent / totalExpected) * 100) : 0;
@@ -98,6 +115,50 @@ export class DashboardService {
       total_present: totalPresent,
       total_expected: totalExpected,
     };
+  }
+
+  async getMonthlyAbsences(month: number, year: number) {
+    const activeEmployees = await this.employeesService.findActiveEmployees();
+    const { workdays, entries } = await this.getElapsedMonthData(month, year);
+
+    const presentDaysByEmployee = new Map<number, number>();
+    for (const e of entries) {
+      presentDaysByEmployee.set(e.employee_id, (presentDaysByEmployee.get(e.employee_id) ?? 0) + 1);
+    }
+
+    const absences = activeEmployees
+      .map((emp) => ({
+        employee_id: emp.id,
+        name: `${emp.first_name} ${emp.last_name}`,
+        department: emp.department,
+        count: workdays - (presentDaysByEmployee.get(emp.id) ?? 0),
+      }))
+      .filter((a) => a.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    return { month, year, workdays, absences };
+  }
+
+  async getRecentEntries(limit = 10) {
+    const now = getReferenceNow();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    const records = await this.attendanceRepo.find({
+      where: { record_type: 'ENTRADA', timestamp: Between(start, end) },
+      relations: ['employee'],
+      order: { timestamp: 'DESC' },
+      take: limit,
+    });
+
+    return records.map((r) => ({
+      id: r.id,
+      employee_id: r.employee_id,
+      name: `${r.employee.first_name} ${r.employee.last_name}`,
+      department: r.employee.department,
+      timestamp: r.timestamp,
+      is_late: r.is_late,
+    }));
   }
 
   async getTardinessReport(month: number, year: number) {

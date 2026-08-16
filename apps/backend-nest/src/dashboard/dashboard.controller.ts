@@ -24,6 +24,23 @@ export class DashboardController {
     );
   }
 
+  @Get('recent-entries')
+  getRecentEntries() {
+    return this.dashboardService.getRecentEntries();
+  }
+
+  @Get('monthly-absences')
+  getMonthlyAbsences(
+    @Query('month') month: string,
+    @Query('year') year: string,
+  ) {
+    const now = new Date();
+    return this.dashboardService.getMonthlyAbsences(
+      month ? +month : now.getMonth() + 1,
+      year ? +year : now.getFullYear(),
+    );
+  }
+
   @Get('tardiness')
   getTardinessReport(
     @Query('month') month: string,
