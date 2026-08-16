@@ -20,6 +20,7 @@ services:
       - "3001:3001"
     env_file: .env
     environment:
+      TZ: "America/Argentina/Buenos_Aires"
       # TEMPORAL (rama temp/dashboard-fake-today-viernes): el dashboard usa
       # esta fecha en vez de la real para mostrar datos del último día hábil.
       FAKE_TODAY: "2026-08-14"
@@ -55,6 +56,8 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - TZ=America/Argentina/Buenos_Aires
+    command: ["postgres", "-c", "timezone=America/Argentina/Buenos_Aires"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
