@@ -5,15 +5,18 @@ import { AttendanceRecord } from '../attendance/entities/attendance-record.entit
 import { EmployeesService } from '../employees/employees.service';
 
 /**
- * TEMPORAL: permite fijar la fecha de referencia del dashboard vía la env var
- * FAKE_TODAY (ej. "2026-08-14") para demos/QA fuera de horario laboral.
- * Rama de corta duración — no mergear a master sin quitar este override.
+ * Fecha de referencia del dashboard. Si FAKE_TODAY_ENABLED=true, usa la
+ * fecha fijada en FAKE_TODAY (ej. "2026-08-14") en vez de la real —
+ * útil para QA/demos fuera de horario laboral. Desactivado por defecto.
  */
 function getReferenceNow(): Date {
+  const enabled = process.env.FAKE_TODAY_ENABLED === 'true';
   const fake = process.env.FAKE_TODAY;
+  if (!enabled || !fake) return new Date();
+
   // "YYYY-MM-DD" a secas se parsea como medianoche UTC; con TZ=America/Argentina
   // eso cae en el día anterior local. Se fija al mediodía para evitar el corrimiento.
-  return fake ? new Date(`${fake}T12:00:00`) : new Date();
+  return new Date(`${fake}T12:00:00`);
 }
 
 @Injectable()
