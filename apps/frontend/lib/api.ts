@@ -2,7 +2,7 @@ import { getToken } from '@/lib/auth'
 import type {
   LoginResponse, Employee, EmployeeListResponse,
   CreateEmployeeDto, UpdateEmployeeDto,
-  TodayAttendance, MonthlyAverage, TardinessReport,
+  TodayAttendance, MonthlyAverage, TardinessReport, RecentEntry, MonthlyAbsences,
   Document, ChatMessage, ChatResponse,
   ConversationThread, HrUser,
   DocumentChunk, ChunkSearchResult,
@@ -60,6 +60,9 @@ export const dashboardApi = {
     request<MonthlyAverage>(`${NEST}/dashboard/monthly-average?month=${month}&year=${year}`),
   tardiness: (month: number, year: number) =>
     request<TardinessReport>(`${NEST}/dashboard/tardiness?month=${month}&year=${year}`),
+  recentEntries: () => request<RecentEntry[]>(`${NEST}/dashboard/recent-entries`),
+  monthlyAbsences: (month: number, year: number) =>
+    request<MonthlyAbsences>(`${NEST}/dashboard/monthly-absences?month=${month}&year=${year}`),
 }
 
 // ─── Documents ─────────────────────────────────────────────────────────────
