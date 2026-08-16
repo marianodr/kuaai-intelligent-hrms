@@ -22,6 +22,60 @@ import { Plus, Pencil, UserX, ShieldAlert } from 'lucide-react'
 
 const EMPTY_FORM = { email: '', password: '', role: 'rrhh' as 'admin' | 'rrhh' }
 
+type UserFormState = typeof EMPTY_FORM
+
+function UserForm({
+  form,
+  setForm,
+  formError,
+  isEdit = false,
+}: {
+  form: UserFormState
+  setForm: (form: UserFormState) => void
+  formError: string
+  isEdit?: boolean
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label>Email</Label>
+        <Input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          required
+        />
+      </div>
+      <div className="space-y-1">
+        <Label>{isEdit ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}</Label>
+        <Input
+          type="password"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          required={!isEdit}
+          autoComplete="new-password"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label>Rol</Label>
+        <Select
+          value={form.role}
+          onValueChange={(v) => setForm({ ...form, role: v as 'admin' | 'rrhh' })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="rrhh">RRHH</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {formError && <p className="text-sm text-destructive">{formError}</p>}
+    </div>
+  )
+}
+
 export default function AdminUsersPage() {
   const currentUser = getUser()
   const [users, setUsers]             = useState<HrUser[]>([])
@@ -91,48 +145,6 @@ export default function AdminUsersPage() {
     fetchUsers()
   }
 
-  function UserForm({ isEdit = false }: { isEdit?: boolean }) {
-    return (
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label>Email</Label>
-          <Input
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required
-          />
-        </div>
-        <div className="space-y-1">
-          <Label>{isEdit ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}</Label>
-          <Input
-            type="password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required={!isEdit}
-            autoComplete="new-password"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label>Rol</Label>
-          <Select
-            value={form.role}
-            onValueChange={(v) => setForm({ ...form, role: v as 'admin' | 'rrhh' })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="rrhh">RRHH</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {formError && <p className="text-sm text-destructive">{formError}</p>}
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -146,7 +158,7 @@ export default function AdminUsersPage() {
             <DialogHeader>
               <DialogTitle>Nuevo usuario</DialogTitle>
             </DialogHeader>
-            <UserForm />
+            <UserForm form={form} setForm={setForm} formError={formError} />
             <DialogFooter>
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? 'Creando...' : 'Crear usuario'}
@@ -212,7 +224,7 @@ export default function AdminUsersPage() {
                           <DialogHeader>
                             <DialogTitle>Editar usuario</DialogTitle>
                           </DialogHeader>
-                          <UserForm isEdit />
+                          <UserForm form={form} setForm={setForm} formError={formError} isEdit />
                           <DialogFooter>
                             <Button onClick={handleSave} disabled={saving}>
                               {saving ? 'Guardando...' : 'Guardar cambios'}
