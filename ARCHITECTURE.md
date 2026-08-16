@@ -255,7 +255,9 @@ graph LR
 | `DELETE` | `/employees/:id` | JWT | Dar de baja (→ INACTIVO) |
 | `GET` | `/dashboard/today` | JWT | Asistencia del día |
 | `GET` | `/dashboard/monthly-average` | JWT | Promedio mensual |
+| `GET` | `/dashboard/recent-entries` | JWT | Últimas entradas del día actual |
 | `GET` | `/dashboard/tardiness` | JWT | Reporte de tardanzas |
+| `GET` | `/dashboard/monthly-absences` | JWT | Reporte de ausencias del mes |
 
 ### Lógica de asistencia (AttendanceService)
 

@@ -73,10 +73,15 @@ Header → getUser() → lee localStorage → muestra email/rol
 ## Módulos implementados
 
 ### Dashboard (`/dashboard`)
-- Carga en paralelo: `today`, `monthlyAverage`, `tardiness`
-- 4 KPI cards: empleados activos, presentes, ausentes, promedio mensual
-- Tabla de ausentes del día con badge de departamento
-- Top 5 tardanzas del mes con conteo
+- Carga en paralelo: `today`, `monthlyAverage`, `tardiness`, `monthlyAbsences`, `recentEntries`
+- 3 KPI cards: donut "Asistencia del Día" (recharts, presentes/ausentes), "Promedio de
+  Asistencia Mensual" (% + asistencias reales/esperadas), "Tardanzas Recurrentes (Mes)"
+  (empleados con 3+ tardanzas)
+- 3 cards secundarias: "Registro de hoy (Tiempo real)" (tabla con los fichajes de ENTRADA
+  del día, polling cada 20s, badge ámbar "Tardanza"), "Tardanzas del mes" (top 5) y
+  "Ausencias del mes" (top 5, badge rojo)
+- Lenguaje de color consistente: verde = presente, rojo = ausente, ámbar = tardanza
+  (variante `warning` en `Badge`)
 
 ### Empleados (`/employees`)
 - Tabla paginada con búsqueda por nombre y filtro por departamento

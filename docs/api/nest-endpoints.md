@@ -282,13 +282,47 @@ Porcentaje promedio de asistencia del mes indicado (o el mes actual si no se esp
   "month": 5,
   "year": 2026,
   "workdays": 20,
-  "average_attendance_pct": 85
+  "average_attendance_pct": 85,
+  "total_present": 68,
+  "total_expected": 80
 }
 ```
+
+Si el mes consultado es el actual, `workdays` (y por lo tanto `total_expected`) cuenta solo
+los días hábiles **transcurridos hasta hoy**, no el mes completo — de lo contrario el % se
+ve artificialmente bajo a mitad de mes.
 
 **curl:**
 ```bash
 curl "http://localhost:3001/dashboard/monthly-average?month=5&year=2026" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### `GET /dashboard/recent-entries`
+
+Últimos fichajes de `ENTRADA` del **día actual** (no de cualquier día), orden descendente por hora.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Respuesta `200`:**
+```json
+[
+  {
+    "id": 839,
+    "employee_id": 3,
+    "name": "Pedro Ramírez",
+    "department": "Operaciones",
+    "timestamp": "2026-08-14T11:19:00.000Z",
+    "is_late": true
+  }
+]
+```
+
+**curl:**
+```bash
+curl http://localhost:3001/dashboard/recent-entries \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -319,6 +353,38 @@ Lista de empleados con tardanzas en el mes, ordenados por cantidad descendente.
 **curl:**
 ```bash
 curl "http://localhost:3001/dashboard/tardiness?month=5&year=2026" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### `GET /dashboard/monthly-absences`
+
+Lista de empleados con ausencias en el mes (días hábiles transcurridos sin fichaje de
+`ENTRADA`), ordenados por cantidad descendente. Solo incluye empleados con al menos 1 ausencia.
+
+**Query params:** `?month=5&year=2026`
+
+**Respuesta `200`:**
+```json
+{
+  "month": 5,
+  "year": 2026,
+  "workdays": 20,
+  "absences": [
+    {
+      "employee_id": 1,
+      "name": "Juan García",
+      "department": "Administración",
+      "count": 4
+    }
+  ]
+}
+```
+
+**curl:**
+```bash
+curl "http://localhost:3001/dashboard/monthly-absences?month=5&year=2026" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

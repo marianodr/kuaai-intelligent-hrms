@@ -202,9 +202,13 @@ Fila:     border-b border-border hover:bg-surface transition-colors
 
 ### Dashboard
 
-- Grid de KPI cards en la parte superior: 4 columnas en desktop, 2 en tablet, 1 en móvil
-- KPI card: número grande en `text-primary`, label en `text-text-secondary`
-- Gráfico de asistencia debajo de los KPIs (línea azul sobre fondo blanco)
+- Grid de 3 KPI cards en la parte superior: 3 columnas en desktop, 2 en tablet, 1 en móvil
+- Donut de "Asistencia del Día" (recharts) + dos cards de número grande (`text-primary`
+  para el promedio mensual, `text-amber-500` para tardanzas recurrentes)
+- Segunda fila de 3 cards: registro de fichajes de hoy en tiempo real (tabla), tardanzas
+  del mes y ausencias del mes (listas top 5)
+- Lenguaje de color consistente en todo el dashboard: verde = presente, rojo = ausente,
+  ámbar = tardanza (`Badge` variant `warning`)
 
 ### Módulo de empleados
 

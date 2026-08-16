@@ -263,5 +263,8 @@ Balance razonable entre seguridad y performance para un MVP. En producción con 
 - [ ] Seed inicial de datos: crear usuario `admin` por defecto al primer arranque
 - [ ] Endpoint `POST /users` (solo admin) para crear responsables de RRHH
 - [ ] Tests unitarios para `AttendanceService.processRfidEvent()`
-- [ ] Manejo de zona horaria: actualmente usa `new Date()` del servidor; definir TZ explícita para Argentina (UTC-3)
+- [x] Manejo de zona horaria: `TZ=America/Argentina/Buenos_Aires` configurado en `backend-nest`
+      y `postgres` (`docker-compose.yml`). Antes ambos contenedores corrían en UTC, lo que
+      hacía que el corte de tardanza (8:15) y el cron de salida automática (16:00) se
+      evaluaran en hora UTC en vez de hora Argentina — un desfase de 3hs.
 - [ ] Rate limiting en `/auth/login` para prevenir fuerza bruta

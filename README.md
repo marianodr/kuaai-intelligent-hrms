@@ -77,25 +77,62 @@ Servicios y puertos:
 ```
 
 Esto crea:
-- 8 empleados con asistencias de mayo 2026
+- 8 empleados con asistencias desde 2026-03-02 hasta hoy
 
 > **Nota:** El usuario `admin` también se crea automáticamente al arrancar el stack, leyendo
 > `ADMIN_EMAIL` y `ADMIN_PASSWORD` del `.env`. El seed solo es necesario para los empleados
 > y sus registros de asistencia de prueba.
 
+> **Importante:** `seed.sql` empieza con `TRUNCATE attendance_records`, así que cada corrida
+> **borra y regenera toda la tabla** de asistencias (los empleados no se duplican gracias al
+> `ON CONFLICT (legajo) DO NOTHING`, pero si cargaste fichajes reales vía RFID, se pierden).
+
 #### Lógica del seed de asistencias
 
-El seed genera registros desde 2026-03-02 hasta `CURRENT_DATE` usando lógica determinista
-(`hashtext`) para reproducibilidad. Parámetros:
+El seed genera registros de lunes a viernes desde 2026-03-02 hasta `CURRENT_DATE`, con un
+comportamiento distinto según el mes:
+
+- **Meses anteriores al actual:** 100 % determinista (hash `hashtext(employee_id || día)`) —
+  misma corrida, mismos datos, siempre. No configurable.
+- **Mes actual:** aleatorio real (`random()`) y parametrizable vía variables de entorno,
+  para poder generar distintos escenarios de demo sin tocar el SQL:
+
+  | Variable | Default | Descripción |
+  |----------|---------|--------------|
+  | `ATTENDANCE_PCT` | `88` | % de presentismo del mes actual |
+  | `LATE_COUNT_LAST_DAY` | `0` | Cantidad exacta de tardanzas forzadas en el último día hábil disponible |
+
+  ```bash
+  # Ejemplo: 90% de presentismo este mes y forzar 2 tardanzas en el último día hábil
+  ATTENDANCE_PCT=90 LATE_COUNT_LAST_DAY=2 ./scripts/seed-db.sh
+  ```
+
+Parámetros generales (aplican a ambos casos):
 
 | Parámetro | Valor |
 |-----------|-------|
-| Tasa de asistencia | 88 % de días hábiles por empleado |
-| Tasa de tardanzas | 12 % de los presentes |
+| Tasa de asistencia (meses anteriores) | 88 % de días hábiles por empleado |
+| Tasa de tardanzas (meses anteriores y días no forzados del mes actual) | 12 % de los presentes |
 | Hora entrada puntual | 07:45–08:15 |
 | Hora entrada con tardanza | 08:16–08:44 |
 | Registro de salida | Solo para días anteriores a hoy (16:00 hs) |
 | Días excluidos | Sábados y domingos |
+
+#### Simular "hoy" en el dashboard (`FAKE_TODAY`)
+
+Como el seed no genera datos para sábados/domingos, si probás el dashboard fuera de horario
+laboral (o un fin de semana) las cards de "hoy" van a verse vacías. Para eso existen dos
+variables en `.env` (ver `.env.example`):
+
+```bash
+FAKE_TODAY_ENABLED=true
+FAKE_TODAY=2026-08-14   # cualquier fecha con datos ya seedeados
+```
+
+Con `FAKE_TODAY_ENABLED=true`, el backend usa `FAKE_TODAY` como "hoy" en vez de la fecha real
+del sistema para todo el módulo de dashboard (`/dashboard/today`, `/dashboard/monthly-average`,
+`/dashboard/recent-entries`). Por defecto está desactivado (`false`) para no afectar el
+comportamiento normal en producción.
 
 ### 4. Acceder al sistema
 
