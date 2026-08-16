@@ -1,6 +1,7 @@
-import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
-import { UserRole } from '../entities/user.entity';
+import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
+// El rol no es editable: el único admin se crea al bootstrap y nunca cambia
+// de rol; los usuarios creados desde este panel son siempre RRHH.
 export class UpdateUserDto {
   @IsOptional()
   @IsEmail()
@@ -10,10 +11,6 @@ export class UpdateUserDto {
   @IsString()
   @MinLength(8)
   password?: string;
-
-  @IsOptional()
-  @IsIn(['admin', 'rrhh'] as UserRole[])
-  role?: UserRole;
 
   @IsOptional()
   @IsBoolean()

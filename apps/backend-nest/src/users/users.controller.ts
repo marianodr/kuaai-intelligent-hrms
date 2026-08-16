@@ -27,7 +27,7 @@ export class UsersController {
 
   @Post()
   create(@Body() dto: CreateUserDto) {
-    return this.usersService.createUser(dto.email, dto.password, dto.role);
+    return this.usersService.createUser(dto.email, dto.password, 'rrhh');
   }
 
   @Patch(':id')

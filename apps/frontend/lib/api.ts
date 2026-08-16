@@ -125,20 +125,27 @@ export const threadsApi = {
 }
 
 // ─── HR Users (admin) ──────────────────────────────────────────────────────
+// Solo se crean/editan usuarios RRHH desde acá; el único admin se crea al
+// bootstrap del backend y no es editable salvo su contraseña.
 export const usersApi = {
   list: () => request<HrUser[]>(`${NEST}/users`),
-  create: (email: string, password: string, role: 'admin' | 'rrhh') =>
+  create: (email: string, password: string) =>
     request<HrUser>(`${NEST}/users`, {
       method: 'POST',
-      body: JSON.stringify({ email, password, role }),
+      body: JSON.stringify({ email, password }),
     }),
-  update: (id: number, dto: Partial<{ email: string; password: string; role: string; is_active: boolean }>) =>
+  update: (id: number, dto: Partial<{ email: string; password: string; is_active: boolean }>) =>
     request<HrUser>(`${NEST}/users/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(dto),
     }),
   deactivate: (id: number) =>
     request<HrUser>(`${NEST}/users/${id}/deactivate`, { method: 'PATCH' }),
+  reactivate: (id: number) =>
+    request<HrUser>(`${NEST}/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active: true }),
+    }),
 }
 
 // ─── Chunks / RAG Inspector (admin) ────────────────────────────────────────

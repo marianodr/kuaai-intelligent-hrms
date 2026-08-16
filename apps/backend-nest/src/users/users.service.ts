@@ -47,22 +47,15 @@ export class UsersService {
     const user = await this.repo.findOne({ where: { id } });
     if (!user) throw new NotFoundException(`Usuario ${id} no encontrado`);
 
-    const losesAdminStatus =
-      user.role === 'admin' &&
-      user.is_active &&
-      ((dto.role && dto.role !== 'admin') || dto.is_active === false);
-
-    if (losesAdminStatus) {
-      const activeAdmins = await this.repo.count({ where: { role: 'admin', is_active: true } });
-      if (activeAdmins <= 1) {
-        throw new BadRequestException(
-          'No se puede quitar el rol de administrador ni desactivar al último administrador activo del sistema',
-        );
-      }
+    // Solo hay un admin (creado al bootstrap) y nunca deja de serlo: desde
+    // este panel únicamente se le puede cambiar la contraseña.
+    if (user.role === 'admin' && (dto.email !== undefined || dto.is_active !== undefined)) {
+      throw new BadRequestException(
+        'El usuario administrador solo permite cambiar la contraseña desde este panel',
+      );
     }
 
     if (dto.email) user.email = dto.email;
-    if (dto.role) user.role = dto.role;
     if (dto.is_active !== undefined) user.is_active = dto.is_active;
     if (dto.password) user.password = await bcrypt.hash(dto.password, 10);
 

@@ -15,26 +15,64 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import { Plus, Pencil, UserX, ShieldAlert } from 'lucide-react'
+import { Plus, Pencil, UserX, RotateCcw, ShieldAlert, Eye, EyeOff } from 'lucide-react'
 
-const EMPTY_FORM = { email: '', password: '', role: 'rrhh' as 'admin' | 'rrhh' }
+const EMPTY_FORM = { email: '', password: '', confirmPassword: '' }
 
 type UserFormState = typeof EMPTY_FORM
+
+function PasswordField({
+  label,
+  value,
+  onChange,
+  required,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  required?: boolean
+}) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      <div className="relative">
+        <Input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+          autoComplete="new-password"
+          className="pr-9"
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setVisible((v) => !v)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        >
+          {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function UserForm({
   form,
   setForm,
   formError,
   isEdit = false,
+  isAdminTarget = false,
 }: {
   form: UserFormState
   setForm: (form: UserFormState) => void
   formError: string
   isEdit?: boolean
+  isAdminTarget?: boolean
 }) {
+  const passwordRequired = !isEdit || isAdminTarget
+
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -43,34 +81,28 @@ function UserForm({
           type="email"
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
+          disabled={isAdminTarget}
           required
         />
       </div>
-      <div className="space-y-1">
-        <Label>{isEdit ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}</Label>
-        <Input
-          type="password"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-          required={!isEdit}
-          autoComplete="new-password"
-        />
-      </div>
-      <div className="space-y-1">
-        <Label>Rol</Label>
-        <Select
-          value={form.role}
-          onValueChange={(v) => setForm({ ...form, role: v as 'admin' | 'rrhh' })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="rrhh">RRHH</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <PasswordField
+        label={
+          isAdminTarget
+            ? 'Nueva contraseña'
+            : isEdit
+              ? 'Nueva contraseña (dejar vacío para no cambiar)'
+              : 'Contraseña'
+        }
+        value={form.password}
+        onChange={(v) => setForm({ ...form, password: v })}
+        required={passwordRequired}
+      />
+      <PasswordField
+        label="Repetir contraseña"
+        value={form.confirmPassword}
+        onChange={(v) => setForm({ ...form, confirmPassword: v })}
+        required={passwordRequired}
+      />
       {formError && <p className="text-sm text-destructive">{formError}</p>}
     </div>
   )
@@ -113,22 +145,35 @@ export default function AdminUsersPage() {
   }
 
   function openEdit(u: HrUser) {
-    setForm({ email: u.email, password: '', role: u.role })
+    setForm({ email: u.email, password: '', confirmPassword: '' })
     setFormError('')
     setEditTarget(u)
   }
 
   async function handleSave() {
-    setSaving(true)
     setFormError('')
+    const isAdminTarget = editTarget?.role === 'admin'
+    const passwordRequired = !editTarget || isAdminTarget
+
+    if (passwordRequired && !form.password) {
+      setFormError('La contraseña es obligatoria')
+      return
+    }
+    if (form.password && form.password !== form.confirmPassword) {
+      setFormError('Las contraseñas no coinciden')
+      return
+    }
+
+    setSaving(true)
     try {
       if (editTarget) {
-        const dto: Record<string, unknown> = { email: form.email, role: form.role }
+        const dto: Record<string, unknown> = {}
+        if (!isAdminTarget) dto.email = form.email
         if (form.password) dto.password = form.password
         await usersApi.update(editTarget.id, dto)
         setEditTarget(null)
       } else {
-        await usersApi.create(form.email, form.password, form.role)
+        await usersApi.create(form.email, form.password)
         setCreateOpen(false)
       }
       fetchUsers()
@@ -145,6 +190,11 @@ export default function AdminUsersPage() {
     fetchUsers()
   }
 
+  async function handleReactivate(id: number) {
+    await usersApi.reactivate(id)
+    fetchUsers()
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -156,7 +206,7 @@ export default function AdminUsersPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nuevo usuario</DialogTitle>
+              <DialogTitle>Nuevo usuario de RRHH</DialogTitle>
             </DialogHeader>
             <UserForm form={form} setForm={setForm} formError={formError} />
             <DialogFooter>
@@ -193,59 +243,81 @@ export default function AdminUsersPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-medium">{u.email}</TableCell>
-                  <TableCell>
-                    <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
-                      {u.role === 'admin' ? 'Admin' : 'RRHH'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={u.is_active ? 'default' : 'secondary'}>
-                      {u.is_active ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {new Date(u.created_at).toLocaleDateString('es-AR')}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Dialog
-                        open={editTarget?.id === u.id}
-                        onOpenChange={(o) => !o && setEditTarget(null)}
-                      >
-                        <DialogTrigger render={
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(u)} />
-                        }>
-                          <Pencil />
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Editar usuario</DialogTitle>
-                          </DialogHeader>
-                          <UserForm form={form} setForm={setForm} formError={formError} isEdit />
-                          <DialogFooter>
-                            <Button onClick={handleSave} disabled={saving}>
-                              {saving ? 'Guardando...' : 'Guardar cambios'}
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                      {u.is_active && u.id !== currentUser?.id && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeactivate(u.id)}
-                          title="Desactivar"
+              users.map((u) => {
+                const isAdminTarget = u.role === 'admin'
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={isAdminTarget ? 'default' : 'secondary'}>
+                        {isAdminTarget ? 'Admin' : 'RRHH'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={u.is_active ? 'default' : 'secondary'}>
+                        {u.is_active ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(u.created_at).toLocaleDateString('es-AR')}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Dialog
+                          open={editTarget?.id === u.id}
+                          onOpenChange={(o) => !o && setEditTarget(null)}
                         >
-                          <UserX className="text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                          <DialogTrigger render={
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(u)} />
+                          }>
+                            <Pencil />
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>
+                                {isAdminTarget ? 'Cambiar contraseña de administrador' : 'Editar usuario'}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <UserForm
+                              form={form}
+                              setForm={setForm}
+                              formError={formError}
+                              isEdit
+                              isAdminTarget={isAdminTarget}
+                            />
+                            <DialogFooter>
+                              <Button onClick={handleSave} disabled={saving}>
+                                {saving ? 'Guardando...' : 'Guardar cambios'}
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                        {!isAdminTarget && (
+                          u.is_active ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeactivate(u.id)}
+                              title="Desactivar"
+                            >
+                              <UserX className="text-destructive" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleReactivate(u.id)}
+                              title="Reactivar"
+                            >
+                              <RotateCcw className="text-primary" />
+                            </Button>
+                          )
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>

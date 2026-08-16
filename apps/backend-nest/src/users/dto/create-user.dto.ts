@@ -1,6 +1,8 @@
-import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
-import { UserRole } from '../entities/user.entity';
+import { IsEmail, IsString, MinLength } from 'class-validator';
 
+// Solo se pueden crear usuarios RRHH desde este endpoint. El único admin
+// se crea al bootstrap del backend (ver AdminSeeder) a partir de
+// ADMIN_EMAIL/ADMIN_PASSWORD.
 export class CreateUserDto {
   @IsEmail()
   email: string;
@@ -8,7 +10,4 @@ export class CreateUserDto {
   @IsString()
   @MinLength(8)
   password: string;
-
-  @IsIn(['admin', 'rrhh'] as UserRole[])
-  role: UserRole;
 }
