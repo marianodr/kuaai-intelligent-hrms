@@ -267,7 +267,7 @@ flowchart TD
     CHECK_EMP{{"¿Empleado existe\ny está ACTIVO?"}}
     DISCARD["🚫 Descarta evento"]
     COUNT{{"¿Registros de\nentrada hoy?"}}
-    ENTRADA["✅ Tipo: ENTRADA\n¿hora > 08:15? → is_late: true"]
+    ENTRADA["✅ Tipo: ENTRADA\n¿hora > 08:05? → is_late: true"]
     SALIDA["✅ Tipo: SALIDA"]
     INTER["✅ Tipo: INTERMEDIO"]
     SAVE["💾 Persiste en\nattendance_records"]
@@ -608,7 +608,7 @@ sequenceDiagram
     N->>DB: SELECT * FROM employees\nWHERE rfid_code='ABC123' AND status='ACTIVO'
     alt Empleado encontrado
         N->>DB: SELECT COUNT(*) FROM attendance_records\nWHERE employee_id=X AND DATE(timestamp)=TODAY
-        Note over N: 0 registros → ENTRADA (verifica tardanza > 08:15)<br/>1 registro → SALIDA<br/>2+ registros → INTERMEDIO
+        Note over N: 0 registros → ENTRADA (verifica tardanza > 08:05)<br/>1 registro → SALIDA<br/>2+ registros → INTERMEDIO
         N->>DB: INSERT attendance_records\n(employee_id, timestamp, record_type, is_late)
     else No encontrado / Inactivo
         Note over N: Descarta evento, log WARN

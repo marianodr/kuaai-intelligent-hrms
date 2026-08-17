@@ -116,7 +116,7 @@ Evento MQTT { rfid_code: "ABC123" }
 Cuenta registros con record_type = 'ENTRADA' del día actual
         │
         ├── 0 registros → record_type = 'ENTRADA'
-        │                  ¿timestamp.hour > 08:15? → is_late = true
+        │                  ¿timestamp.hour > 08:05? → is_late = true
         │
         ├── 1 registro  → record_type = 'SALIDA'
         │
@@ -128,7 +128,7 @@ INSERT INTO attendance_records (employee_id, timestamp, record_type, is_late, au
 
 **Horario laboral:**
 - Entrada esperada: `08:00`
-- Tolerancia para tardanza: 15 minutos → tardanza si llega después de las `08:15`
+- Tolerancia para tardanza: 5 minutos (`LATE_TOLERANCE_MINUTES`) → tardanza si llega después de las `08:05`
 - Salida esperada: `16:00`
 
 ---

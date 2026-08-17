@@ -34,7 +34,7 @@ ON CONFLICT (legajo) DO NOTHING;
 --     -v late_count_last_day=N      (default 0)  tardanzas forzadas
 --                                   en el último día hábil disponible
 --
--- Entrada puntual: 07:45–08:15 | Entrada tarde: 08:16–08:44
+-- Entrada puntual: 07:45–08:05 | Entrada tarde: 08:06–08:34
 -- SALIDA solo para días anteriores a hoy (auto-generada por cron el día actual)
 -- =============================================================
 TRUNCATE attendance_records RESTART IDENTITY;
@@ -74,8 +74,8 @@ WITH
       day,
       (h / 100) % 100 < 12                                        AS is_late,
       CASE WHEN (h / 100) % 100 < 12
-        THEN day + ((8 * 60 + 16 + (h / 10000) % 29) || ' minutes')::interval
-        ELSE day + ((7 * 60 + 45 + (h / 10000) % 31) || ' minutes')::interval
+        THEN day + ((8 * 60 + 6 + (h / 10000) % 29) || ' minutes')::interval
+        ELSE day + ((7 * 60 + 45 + (h / 10000) % 21) || ' minutes')::interval
       END                                                           AS entry_ts
     FROM historical_slots
     WHERE h % 100 >= 12
@@ -109,8 +109,8 @@ WITH
       day,
       is_late,
       CASE WHEN is_late
-        THEN day + ((8 * 60 + 16 + floor(random() * 29)) || ' minutes')::interval
-        ELSE day + ((7 * 60 + 45 + floor(random() * 31)) || ' minutes')::interval
+        THEN day + ((8 * 60 + 6 + floor(random() * 29)) || ' minutes')::interval
+        ELSE day + ((7 * 60 + 45 + floor(random() * 21)) || ' minutes')::interval
       END AS entry_ts
     FROM current_present
   ),

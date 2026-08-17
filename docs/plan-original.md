@@ -164,7 +164,7 @@ El sistema combina 3 patrones:
 | Último | SALIDA |
 
 **Lógica de tardanza:**
-- Entrada registrada después de las 08:15 → `is_late: true`
+- Entrada registrada después de las 08:05 → `is_late: true`
 
 **Salida automática:**
 - Si a las 16:00 no hay registro de SALIDA →
@@ -174,7 +174,7 @@ El sistema combina 3 patrones:
 **Horario laboral:**
 - Entrada esperada: 08:00
 - Salida esperada: 16:00
-- Tolerancia para tardanza: 15 minutos
+- Tolerancia para tardanza: 5 minutos (configurable vía `LATE_TOLERANCE_MINUTES`)
 
 ---
 

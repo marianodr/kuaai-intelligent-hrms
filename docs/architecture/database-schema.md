@@ -116,7 +116,7 @@ Registro de cada marcación de tarjeta RFID. Un empleado puede tener múltiples 
 | `employee_id` | `INTEGER FK` | Referencia a `employees.id` |
 | `timestamp` | `TIMESTAMP` | Fecha y hora exacta del evento |
 | `record_type` | `VARCHAR(20)` | `ENTRADA`, `SALIDA` o `INTERMEDIO` |
-| `is_late` | `BOOLEAN` | `true` si la ENTRADA fue después de las 08:15 |
+| `is_late` | `BOOLEAN` | `true` si la ENTRADA fue después de las 08:05 (tolerancia configurable vía `LATE_TOLERANCE_MINUTES`) |
 | `auto_generated` | `BOOLEAN` | `true` si fue generado por el cron de las 16:00 |
 | `created_at` | `TIMESTAMP` | Fecha de inserción en DB |
 

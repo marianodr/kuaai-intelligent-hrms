@@ -6,9 +6,10 @@ import { AttendanceRecord, RecordType } from './entities/attendance-record.entit
 import { Employee } from '../employees/entities/employee.entity';
 import { EmployeesService } from '../employees/employees.service';
 
-// Hora límite para considerar tardanza: 08:15
-const LATE_HOUR = 8;
-const LATE_MINUTE = 15;
+// Horario laboral y tolerancia para tardanza, configurables vía env
+const WORKDAY_START_HOUR = 8;
+const WORKDAY_START_MINUTE = 0;
+const LATE_TOLERANCE_MINUTES = Number(process.env.LATE_TOLERANCE_MINUTES ?? 5);
 
 @Injectable()
 export class AttendanceService {
@@ -70,10 +71,9 @@ export class AttendanceService {
   }
 
   private isLate(date: Date): boolean {
-    return (
-      date.getHours() > LATE_HOUR ||
-      (date.getHours() === LATE_HOUR && date.getMinutes() > LATE_MINUTE)
-    );
+    const minutesOfDay = date.getHours() * 60 + date.getMinutes();
+    const cutoff = WORKDAY_START_HOUR * 60 + WORKDAY_START_MINUTE + LATE_TOLERANCE_MINUTES;
+    return minutesOfDay > cutoff;
   }
 
   // Cron diario a las 16:00 — genera salida automática a quien no la tenga

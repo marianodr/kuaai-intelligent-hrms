@@ -113,10 +113,22 @@ Parámetros generales (aplican a ambos casos):
 |-----------|-------|
 | Tasa de asistencia (meses anteriores) | 88 % de días hábiles por empleado |
 | Tasa de tardanzas (meses anteriores y días no forzados del mes actual) | 12 % de los presentes |
-| Hora entrada puntual | 07:45–08:15 |
-| Hora entrada con tardanza | 08:16–08:44 |
+| Hora entrada puntual | 07:45–08:05 |
+| Hora entrada con tardanza | 08:06–08:34 |
 | Registro de salida | Solo para días anteriores a hoy (16:00 hs) |
 | Días excluidos | Sábados y domingos |
+
+> El corte de 08:05/08:06 usado para generar los datos de prueba refleja el default de
+> `LATE_TOLERANCE_MINUTES` (ver abajo). Si cambiás esa variable, actualizá también estos rangos.
+
+#### Tolerancia para tardanza (`LATE_TOLERANCE_MINUTES`)
+
+NestJS marca una ENTRADA como tardanza (`is_late: true`) si se registra después de la hora de
+entrada esperada (08:00) más los minutos de tolerancia definidos en `.env`:
+
+```bash
+LATE_TOLERANCE_MINUTES=5   # default — tardanza a partir de las 08:05
+```
 
 #### Simular "hoy" en el dashboard (`FAKE_TODAY`)
 
