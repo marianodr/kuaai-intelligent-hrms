@@ -222,7 +222,7 @@ export default function DocumentsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(doc.created_at).toLocaleString('es-AR')}
+                      {new Date(doc.created_at).toLocaleString('es-AR', { hour12: false })}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
