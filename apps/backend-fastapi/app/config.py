@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Groq
     groq_api_key: str
-    groq_model: str = "llama-3.1-8b-instant"
+    groq_model: str = "qwen/qwen3.6-27b"
 
     # SentenceTransformers
     embeddings_model: str = "all-MiniLM-L6-v2"
