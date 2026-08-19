@@ -19,6 +19,10 @@ Uso:
     # límite de requests/minuto del proveedor configurado):
     python scripts/eval_rag.py --dataset scripts/dataset.json --judge-rpm 15
 
+    # Controlar también la cadencia de llamadas de generación a Groq (para no
+    # exceder el límite de tokens/minuto del modelo de generación):
+    python scripts/eval_rag.py --dataset scripts/dataset.json --judge-rpm 15 --gen-rpm 3
+
     # Comparar configuraciones:
     EMBEDDINGS_MODEL=paraphrase-multilingual-mpnet-base-v2 python scripts/eval_rag.py --top-k 6
 
@@ -37,6 +41,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -118,7 +123,6 @@ def retrieve(conn, st_model: SentenceTransformer, question: str, top_k: int) -> 
 
 def generate(llm: ChatGroq, question: str, contexts: list[str], max_retries: int = 5) -> str:
     from groq import RateLimitError
-    import time
 
     ctx = "\n\n---\n\n".join(contexts) if contexts else "Sin contexto disponible."
     prompt = GENERATION_PROMPT.format(context=ctx, question=question)
@@ -142,7 +146,7 @@ def generate(llm: ChatGroq, question: str, contexts: list[str], max_retries: int
 
 # ── Evaluación ──────────────────────────────────────────────────────────────
 
-def run(dataset_path: str, top_k: int, judge_rpm: int) -> None:
+def run(dataset_path: str, top_k: int, judge_rpm: int, gen_rpm: int) -> None:
     try:
         from openai import AsyncOpenAI
         from ragas import SingleTurnSample
@@ -211,12 +215,20 @@ def run(dataset_path: str, top_k: int, judge_rpm: int) -> None:
     ragas_emb          = RagasHFEmbeddings(model=EMBEDDINGS_MODEL)
     conn       = get_conn()
 
+    # Espaciado entre llamadas de generación para no exceder el límite de tokens/minuto
+    # de Groq (qwen/qwen3.6-27b tiene 8000 TPM en esta cuenta, y cada llamada produce
+    # salidas largas). x1.1 de margen para no quedar justo al filo del límite.
+    gen_interval_seconds = (60 / gen_rpm) * 1.1
+    print(f"Gen RPM:           {gen_rpm} (intervalo entre llamadas: {gen_interval_seconds:.1f}s)")
+
     print("Ejecutando pipeline RAG...\n")
     samples = []
     for i, item in enumerate(dataset):
         q = item["question"]
         print(f"[{i+1}/{len(dataset)}] {q[:75]}")
         contexts = retrieve(conn, st_model, q, top_k)
+        print(f"  ⏳ esperando {gen_interval_seconds:.1f}s (gen-rpm={gen_rpm})")
+        time.sleep(gen_interval_seconds)
         answer   = generate(llm, q, contexts)
         samples.append(SingleTurnSample(
             user_input=q,
@@ -309,6 +321,8 @@ def main() -> None:
                         help="Chunks a recuperar por pregunta (default: 4)")
     parser.add_argument("--judge-rpm", type=int, default=15,
                         help="Máximo de solicitudes por minuto al juez RAGAS (default: 15)")
+    parser.add_argument("--gen-rpm",   type=int, default=3,
+                        help="Máximo de solicitudes por minuto al modelo de generación (default: 3)")
     args = parser.parse_args()
 
     if not Path(args.dataset).exists():
@@ -316,7 +330,7 @@ def main() -> None:
         print("Generá el dataset con:  python scripts/generate_dataset.py")
         sys.exit(1)
 
-    run(args.dataset, args.top_k, args.judge_rpm)
+    run(args.dataset, args.top_k, args.judge_rpm, args.gen_rpm)
 
 
 if __name__ == "__main__":
