@@ -18,7 +18,7 @@ Combina control de asistencia por RFID/IoT, gestión de empleados y un agente RA
 |---|---|
 | Frontend | Next.js 16 + Tailwind CSS + shadcn/ui |
 | Backend principal | NestJS + TypeORM + JWT |
-| Backend IA | FastAPI + LangChain + Groq (Llama 3.1 8B) |
+| Backend IA | FastAPI + LangChain + Groq (qwen/qwen3.6-27b) |
 | Base de datos | PostgreSQL 16 + pgvector |
 | Object storage | MinIO |
 | Broker IoT | Mosquitto MQTT |
@@ -187,9 +187,10 @@ kuaai-intelligent-hrms/
 │   ├── architecture/       # Diagramas y decisiones de diseño
 │   ├── decisions/          # ADRs
 │   └── api/                # Referencia de endpoints
-├── scripts/
+├── scripts/                # Ver scripts/README.md para el detalle
 │   ├── test-e2e.sh         # Pruebas de integración
-│   └── seed-db.sh          # Carga datos de prueba
+│   ├── seed-db.sh          # Carga datos de prueba
+│   └── ...                 # Generación de datasets y evaluación RAGAS del RAG
 ├── docker-compose.yml
 ├── docker-compose.dev.yml  # Overrides para desarrollo con volúmenes
 ├── .env.example
@@ -255,14 +256,16 @@ Genera 4 PDFs en `docs/hr-pdfs/` con contenido detallado sobre vacaciones, contr
 ### Evaluación del pipeline RAG (RAGAS)
 
 ```bash
-# Instalar dependencias de evaluación
 pip install -r scripts/requirements-eval.txt
 
-# Ejecutar evaluación (requiere stack corriendo)
-python scripts/eval_rag.py
+python scripts/generate_dataset.py   # genera el dataset "gold" (requiere stack corriendo)
+python scripts/eval_rag.py           # evalúa el pipeline RAG contra ese dataset
 ```
 
-Evalúa el pipeline RAG con las métricas `faithfulness`, `answer_relevancy` y `context_recall` de la librería RAGAS.
+Evalúa el pipeline RAG con las métricas `faithfulness`, `answer_relevancy`, `context_precision`
+y `context_recall` de la librería RAGAS, usando Gemini como juez. Requiere `GOOGLE_API_KEY` o
+`GEMINI_API_KEY` en `.env` además de `GROQ_API_KEY`. Ver [`scripts/README.md`](scripts/README.md)
+para el detalle de cada archivo y los modelos en uso.
 
 ---
 

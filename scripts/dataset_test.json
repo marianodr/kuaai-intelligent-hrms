@@ -1,0 +1,37 @@
+[
+  {
+    "question": "¿A qué tipo de personal aplica este Reglamento Interno?",
+    "ground_truth": "Aplica a todo el personal de la empresa, incluyendo empleados de planta, contratistas y personal temporal, independientemente de su nivel jerárquico o modalidad de contratación.",
+    "source_document": "RRHH-03 Reglamento Interno _ Manual del Empleado.pdf",
+    "source_chunk_id": 6,
+    "source_content": "Código:\n\nRRHH-03\n\nNombre:\n\nReglamento Interno / Manual del Empleado\n\nVersión:\n\n1.0\n\nFecha de emisión:\n\n01/09/2025\n\nÁmbito de aplicación: Todo el personal de la empresa, incluyendo empleados de planta, contratistas y personal temporal.\n\n## 1. Objetivo\n\nEstablecer normas claras de conducta, responsabilidades, derechos y obligaciones del personal, así como procedimientos disciplinarios y sanciones aplicables, promoviendo un ambiente laboral seguro, ético y eficiente.\n\n## 2. Alcance\n\nAplica a todos los empleados de la empresa, independientemente de su nivel jerárquico o modalidad de contratación.\n\n## 3. Normas de conducta"
+  },
+  {
+    "question": "¿A qué tipos de contrataciones aplica este procedimiento?",
+    "ground_truth": "Aplica a todas las contrataciones de personal permanente, temporal, administrativo, operativo y de dirección dentro de la empresa.",
+    "source_document": "RRHH-05 Procedimientos de Contratación.pdf",
+    "source_chunk_id": 22,
+    "source_content": "Código:\n\nRRHH-05\n\nNombre:\n\nProcedimientos de Contratación\n\nVersión:\n\n1.0\n\nFecha de emisión:\n\n01/09/2025\n\nÁmbito de aplicación: Todo el personal de Recursos Humanos y áreas responsables de selección e incorporación de empleados.\n\n## 1. Objetivo\n\nDefinir el proceso estandarizado de contratación de personal, asegurando la transparencia, equidad y cumplimiento legal en cada etapa, con el fin de incorporar a los candidatos más adecuados para cubrir las necesidades de la empresa.\n\n## 2. Alcance\n\nEste procedimiento aplica a todas las contrataciones de personal permanente, temporal, administrativo, operativo y de dirección dentro de la empresa.\n\n## 3. Etapas del proceso de contratación\n\n## 1. Identificación de la vacante:\n\n- El área solicitante comunica la necesidad de cubrir un puesto a RRHH.\n- Se valida contra la matriz de puestos y el presupuesto disponible.\n\n## 2. Aprobación de la vacante:"
+  },
+  {
+    "question": "¿Qué consecuencias tiene llegar más de 5 minutos tarde a mi jornada laboral?",
+    "ground_truth": "Se registrará como tardanza y se contabilizará para efectos de evaluaciones de desempeño o medidas disciplinarias. Si acumulas tres o más tardanzas en un mes, se reportará a tu supervisor y puede derivar en acciones correctivas según el Reglamento Interno (RRHH-03).",
+    "source_document": "RRHH-01_ Políticas de Asistencia y Horarios.pdf",
+    "source_chunk_id": 2,
+    "source_content": "## 3. Registro de asistencia\n\n- Todos los ingresos y egresos se registrarán automáticamente mediante el sistema IoT.\n- En caso de falla del sistema o lectura incorrecta del RFID, los empleados deberán registrar manualmente su horario y notificar inmediatamente al supervisor.\n- RRHH verificará diariamente los registros y resolverá cualquier inconsistencia dentro de las 24 horas hábiles siguientes.\n\n## 4. Tolerancias y puntualidad\n\n- Se permite un margen de 5 minutos de tolerancia para la entrada y salida.\n- Retrasos superiores a 5 minutos se registrarán como tardanza , y se contabilizarán para efectos de evaluaciones de desempeño o medidas disciplinarias.\n- Tres o más tardanzas en un mes serán reportadas al supervisor y pueden derivar en acciones correctivas según el Reglamento Interno (RRHH-03).\n\n## 5. Ausencias y permisos"
+  },
+  {
+    "question": "¿Cuál es el objetivo principal del documento de la Matriz de Puestos y Organigrama?",
+    "ground_truth": "Establecer de manera clara la estructura organizacional de la empresa, definiendo roles, responsabilidades y jerarquías, con el fin de facilitar la coordinación, la comunicación interna y la asignación eficiente de tareas.",
+    "source_document": "RRHH-04 Matriz de Puestos y Organigrama.pdf",
+    "source_chunk_id": 14,
+    "source_content": "Código:\n\nRRHH-04\n\nNombre:\n\nMatriz de Puestos y Organigrama\n\nVersión:\n\n1.0\n\nFecha de emisión:\n\n01/09/2025\n\nÁmbito de aplicación:\n\nTodos los empleados de la empresa y niveles jerárquicos.\n\n## 1. Objetivo\n\nEstablecer de manera clara la estructura organizacional de la empresa, definiendo roles, responsabilidades y jerarquías, con el fin de facilitar la coordinación, la comunicación interna y la asignación eficiente de tareas.\n\n## 2. Alcance\n\nAplica a toda la organización, incluyendo personal de planta, supervisores, gerentes y directores, así como puestos de soporte y administrativos.\n\n## 3. Organigrama\n\nEl organigrama refleja la estructura jerárquica de la empresa y las relaciones de dependencia entre los diferentes puestos:"
+  },
+  {
+    "question": "¿Qué categorías de permisos y licencias reconoce la empresa según este procedimiento?",
+    "ground_truth": "La empresa reconoce cuatro tipos: 1) Permisos personales o familiares para ausencias breves por asuntos urgentes; 2) Permisos por enfermedad para ausencias justificadas por motivos médicos propios o de familiares directos; 3) Licencias especiales que incluyen maternidad, paternidad, estudios, adopción u otras contempladas por la legislación vigente; y 4) Permisos extraordinarios para trabajo remoto o ausencias no contempladas, los cuales están sujetos a la aprobación de supervisores y RRHH.",
+    "source_document": "RRHH-02_ Procedimientos de Permisos y Licencias.pdf",
+    "source_chunk_id": 10,
+    "source_content": "Código:\n\nRRHH-02\n\nNombre:\n\nProcedimientos de Permisos y Licencias\n\nVersión:\n\n1.0\n\nFecha de emisión:\n\n01/09/2025\n\nÁmbito de aplicación: Todo el personal de la empresa, incluyendo empleados de planta, contratistas y pasantes.\n\n## 1. Objetivo\n\nEstablecer un procedimiento claro y estandarizado para la solicitud, autorización y registro de permisos y licencias, garantizando el cumplimiento de la normativa laboral y la continuidad de las operaciones de la empresa.\n\n## 2. Tipos de permisos y licencias\n\n1. Permisos personales o familiares: Ausencias breves por asuntos personales o familiares urgentes.\n2. Permisos por enfermedad: Ausencias justificadas por motivos médicos propios o de familiares directos.\n3. Licencias especiales: Incluyen maternidad, paternidad, estudios, adopción u otros contemplados por la legislación vigente.\n4. Permisos extraordinarios: Trabajo remoto o ausencias no contempladas en categorías anteriores, sujetas a aprobación de supervisores y RRHH."
+  }
+]
