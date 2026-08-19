@@ -20,7 +20,10 @@ Uso:
 
 Variables de entorno (desde .env):
     POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
-    GROQ_API_KEY, GROQ_MODEL
+    GROQ_API_KEY, GROQ_MODEL                  — LLM de generación del pipeline RAG
+    GOOGLE_API_KEY o GEMINI_API_KEY           — juez RAGAS (Gemini, cualquiera de los dos nombres sirve)
+    RAGAS_JUDGE_MODEL (default: gemini-3.1-flash-lite — gemini-3.6-flash pega el
+        límite diario de 20 req del free tier casi de inmediato, flash-lite no)
     EMBEDDINGS_MODEL (default: all-MiniLM-L6-v2)
 """
 
@@ -52,6 +55,10 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "kuaai_password")
 GROQ_API_KEY      = _file.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL        = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
 EMBEDDINGS_MODEL  = os.getenv("EMBEDDINGS_MODEL", "all-MiniLM-L6-v2")
+# El SDK de Google no tiene un nombre de env var único: google-genai usa GOOGLE_API_KEY,
+# pero muchos setups (incluido este .env) usan GEMINI_API_KEY. Soportamos ambos.
+GOOGLE_API_KEY    = (_file.get("GOOGLE_API_KEY") or _file.get("GEMINI_API_KEY")
+                      or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY", ""))
 
 GENERATION_PROMPT = """Sos un asistente de RRHH. Respondé la pregunta basándote EXCLUSIVAMENTE en los fragmentos de documentos proporcionados. Si la información no está en los fragmentos, decilo claramente.
 
@@ -104,9 +111,25 @@ def retrieve(conn, st_model: SentenceTransformer, question: str, top_k: int) -> 
         return [r["content"] for r in cur.fetchall()]
 
 
-def generate(llm: ChatGroq, question: str, contexts: list[str]) -> str:
+def generate(llm: ChatGroq, question: str, contexts: list[str], max_retries: int = 5) -> str:
+    from groq import RateLimitError
+    import time
+
     ctx = "\n\n---\n\n".join(contexts) if contexts else "Sin contexto disponible."
-    text = llm.invoke(GENERATION_PROMPT.format(context=ctx, question=question)).content
+    prompt = GENERATION_PROMPT.format(context=ctx, question=question)
+
+    for attempt in range(max_retries):
+        try:
+            text = llm.invoke(prompt).content
+            break
+        except RateLimitError as e:
+            if attempt == max_retries - 1:
+                raise
+            wait = getattr(getattr(e, "response", None), "headers", {}).get("retry-after")
+            wait = float(wait) + 1 if wait else 2 ** attempt
+            print(f"    ⚠ Rate limit, esperando {wait:.1f}s (intento {attempt + 1}/{max_retries})")
+            time.sleep(wait)
+
     # qwen3.6-27b incluye <think>...</think> — removemos antes de pasar a RAGAS
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     return text
@@ -116,8 +139,7 @@ def generate(llm: ChatGroq, question: str, contexts: list[str]) -> str:
 
 def run(dataset_path: str, top_k: int) -> None:
     try:
-        import instructor
-        from groq import Groq
+        from openai import AsyncOpenAI
         from ragas import SingleTurnSample
         from ragas.llms import llm_factory
         from ragas.embeddings import HuggingFaceEmbeddings as RagasHFEmbeddings
@@ -141,6 +163,10 @@ def run(dataset_path: str, top_k: int) -> None:
         print("ERROR: GROQ_API_KEY no configurado en .env")
         sys.exit(1)
 
+    if not GOOGLE_API_KEY:
+        print("ERROR: GOOGLE_API_KEY (o GEMINI_API_KEY) no configurado en .env")
+        sys.exit(1)
+
     print(f"Dataset:          {len(dataset)} muestras  ({dataset_path})")
     print(f"Embedding model:  {EMBEDDINGS_MODEL}")
     print(f"Groq model:       {GROQ_MODEL}")
@@ -153,13 +179,29 @@ def run(dataset_path: str, top_k: int) -> None:
     llm      = ChatGroq(model=GEN_MODEL, api_key=GROQ_API_KEY, temperature=0)
     st_model = SentenceTransformer(EMBEDDINGS_MODEL)
 
-    # LLM para RAGAS como juez — necesita cliente async y un modelo que soporte JSON mode
-    # qwen3.6-27b falla con instructor JSON schema; llama-3.3-70b-versatile funciona
-    from groq import AsyncGroq
-    RAGAS_JUDGE_MODEL = os.getenv("RAGAS_JUDGE_MODEL", "llama-3.3-70b-versatile")
-    async_groq        = AsyncGroq(api_key=GROQ_API_KEY)
-    instructor_client = instructor.from_groq(async_groq, mode=instructor.Mode.JSON)
-    ragas_llm         = llm_factory(RAGAS_JUDGE_MODEL, provider="groq", client=instructor_client)
+    # LLM para RAGAS como juez — Gemini, pero hablándole con el protocolo de OpenAI.
+    #
+    # Gemini expone un endpoint compatible con la API de OpenAI
+    # (https://generativelanguage.googleapis.com/v1beta/openai/), así que se puede usar
+    # AsyncOpenAI apuntando a esa URL en vez del SDK nativo de Google (google-genai).
+    #
+    # La razón real de este approach es evitar un bug: con provider="google", el adapter
+    # de ragas llama internamente a instructor.from_genai(client) sin pasar use_async=True,
+    # lo que devuelve un cliente síncrono — incompatible con el resto del pipeline, que usa
+    # .ascore()/.agenerate() en todo eval_rag.py. Eso revienta con
+    # "TypeError: Cannot use agenerate() with a synchronous client".
+    #
+    # Con provider="openai", ragas usa instructor.from_openai(client) en su lugar, que sí
+    # soporta clientes async correctamente. El modelo detrás sigue siendo Gemini — solo
+    # cambia el protocolo con el que se le habla.
+    RAGAS_JUDGE_MODEL  = os.getenv("RAGAS_JUDGE_MODEL", "gemini-3.1-flash-lite")
+    async_google       = AsyncOpenAI(
+        api_key=GOOGLE_API_KEY,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+    # Default de ragas es max_tokens=1024 — insuficiente para el JSON de faithfulness
+    # (lista de claims + veredicto por claim), lo vimos truncarse en la práctica.
+    ragas_llm          = llm_factory(RAGAS_JUDGE_MODEL, provider="openai", client=async_google, max_tokens=4096)
     print(f"RAGAS judge model: {RAGAS_JUDGE_MODEL}")
     ragas_emb          = RagasHFEmbeddings(model=EMBEDDINGS_MODEL)
     conn       = get_conn()
@@ -197,7 +239,7 @@ def run(dataset_path: str, top_k: int) -> None:
         ]:
             try:
                 result = await coro
-                scores[name] = float(result.score)
+                scores[name] = float(result.value)
             except Exception as e:
                 scores[name] = None
                 print(f"    ⚠ {name}: {e}")
