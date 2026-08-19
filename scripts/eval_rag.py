@@ -15,6 +15,10 @@ Uso:
     # Evaluar:
     python scripts/eval_rag.py [--dataset scripts/dataset.json] [--top-k 4]
 
+    # Controlar la cadencia de llamadas al juez RAGAS (para no exceder el
+    # límite de requests/minuto del proveedor configurado):
+    python scripts/eval_rag.py --dataset scripts/dataset.json --judge-rpm 15
+
     # Comparar configuraciones:
     EMBEDDINGS_MODEL=paraphrase-multilingual-mpnet-base-v2 python scripts/eval_rag.py --top-k 6
 
@@ -28,6 +32,7 @@ Variables de entorno (desde .env):
 """
 
 import argparse
+import asyncio
 import json
 import os
 import re
@@ -137,7 +142,7 @@ def generate(llm: ChatGroq, question: str, contexts: list[str], max_retries: int
 
 # ── Evaluación ──────────────────────────────────────────────────────────────
 
-def run(dataset_path: str, top_k: int) -> None:
+def run(dataset_path: str, top_k: int, judge_rpm: int) -> None:
     try:
         from openai import AsyncOpenAI
         from ragas import SingleTurnSample
@@ -229,6 +234,11 @@ def run(dataset_path: str, top_k: int) -> None:
     ctx_precision_m  = ContextPrecisionWithReference(llm=ragas_llm)
     ctx_recall_m     = ContextRecall(llm=ragas_llm)
 
+    # Espaciado entre llamadas al juez para no exceder su límite de requests/minuto.
+    # x1.1 de margen para no quedar justo al filo del límite.
+    judge_interval_seconds = (60 / judge_rpm) * 1.1
+    print(f"Judge RPM:         {judge_rpm} (intervalo entre llamadas: {judge_interval_seconds:.1f}s)\n")
+
     async def score_sample(s: SingleTurnSample) -> dict:
         scores = {}
         for name, coro in [
@@ -237,6 +247,8 @@ def run(dataset_path: str, top_k: int) -> None:
             ("context_precision",         ctx_precision_m.ascore(user_input=s.user_input, reference=s.reference, retrieved_contexts=s.retrieved_contexts)),
             ("context_recall",            ctx_recall_m.ascore(user_input=s.user_input, retrieved_contexts=s.retrieved_contexts, reference=s.reference)),
         ]:
+            print(f"  ⏳ esperando {judge_interval_seconds:.1f}s (judge-rpm={judge_rpm})")
+            await asyncio.sleep(judge_interval_seconds)
             try:
                 result = await coro
                 scores[name] = float(result.value)
@@ -254,7 +266,6 @@ def run(dataset_path: str, top_k: int) -> None:
             rows.append(row)
         return rows
 
-    import asyncio
     rows = asyncio.run(score_all())
 
     import pandas as pd
@@ -296,6 +307,8 @@ def main() -> None:
     parser.add_argument("--dataset", default="scripts/dataset.json")
     parser.add_argument("--top-k",   type=int, default=4,
                         help="Chunks a recuperar por pregunta (default: 4)")
+    parser.add_argument("--judge-rpm", type=int, default=15,
+                        help="Máximo de solicitudes por minuto al juez RAGAS (default: 15)")
     args = parser.parse_args()
 
     if not Path(args.dataset).exists():
@@ -303,7 +316,7 @@ def main() -> None:
         print("Generá el dataset con:  python scripts/generate_dataset.py")
         sys.exit(1)
 
-    run(args.dataset, args.top_k)
+    run(args.dataset, args.top_k, args.judge_rpm)
 
 
 if __name__ == "__main__":
