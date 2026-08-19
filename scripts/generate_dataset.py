@@ -40,8 +40,10 @@ GROQ_MODEL        = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
 
 PROMPT = """Dado el siguiente fragmento de un documento de RRHH empresarial, generá UNA pregunta concreta que un empleado podría hacerle al asistente de RRHH y que este fragmento responde total o parcialmente. Incluí también la respuesta esperada basada EXCLUSIVAMENTE en el fragmento.
 
-Respondé ÚNICAMENTE con JSON válido en este formato, sin texto adicional:
-{{"question": "...", "answer": "..."}}
+Respondé ÚNICAMENTE con JSON válido, sin texto adicional. Completá "question" y "answer"
+con el contenido real que generes vos a partir del fragmento — no copies este ejemplo,
+es solo para mostrar la estructura:
+{{"question": "¿Cuántos días de vacaciones corresponden por año?", "answer": "20 días hábiles por año calendario."}}
 
 Fragmento:
 {content}"""
@@ -94,21 +96,31 @@ def _extract_json(text: str) -> dict | None:
         return None
 
 
-def generate_qa(llm: ChatGroq, chunk: dict) -> dict | None:
+def _is_placeholder(text: str) -> bool:
+    """Detecta si el modelo copió el ejemplo del prompt en vez de generar contenido real."""
+    return len(text.strip().strip(".").strip()) < 8
+
+
+def generate_qa(llm: ChatGroq, chunk: dict, attempts: int = 2) -> dict | None:
     prompt = PROMPT.format(content=chunk["content"][:1500])
     try:
-        text = llm.invoke(prompt).content.strip()
-        data = _extract_json(text)
-        if not data or not data.get("question") or not data.get("answer"):
-            print(f"    ⚠ No se pudo extraer JSON válido")
-            return None
-        return {
-            "question":        data["question"],
-            "ground_truth":    data["answer"],
-            "source_document": chunk["document_name"],
-            "source_chunk_id": chunk["id"],
-            "source_content":  chunk["content"],
-        }
+        for attempt in range(attempts):
+            text = llm.invoke(prompt).content.strip()
+            data = _extract_json(text)
+            if not data or not data.get("question") or not data.get("answer"):
+                print(f"    ⚠ No se pudo extraer JSON válido (intento {attempt + 1}/{attempts})")
+                continue
+            if _is_placeholder(data["question"]) or _is_placeholder(data["answer"]):
+                print(f"    ⚠ El modelo devolvió un placeholder, no contenido real (intento {attempt + 1}/{attempts})")
+                continue
+            return {
+                "question":        data["question"],
+                "ground_truth":    data["answer"],
+                "source_document": chunk["document_name"],
+                "source_chunk_id": chunk["id"],
+                "source_content":  chunk["content"],
+            }
+        return None
     except Exception as e:
         print(f"    ⚠ Error: {e}")
         return None
