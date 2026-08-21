@@ -13,9 +13,16 @@ class ChatRequest(BaseModel):
     thread_id: str | None = None
 
 
+class ToolCallInfo(BaseModel):
+    tool: str
+    args: dict
+    result: str | None = None
+
+
 class ChatResponse(BaseModel):
     answer: str
     thread_id: str
+    tool_calls: list[ToolCallInfo] = []
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -26,8 +33,12 @@ def chat(req: ChatRequest):
     """
     thread_id = req.thread_id or f"user-{req.user_id}"
     try:
-        answer = agent_service.chat(req.question, req.user_id, thread_id)
-        return ChatResponse(answer=answer, thread_id=thread_id)
+        result = agent_service.chat(req.question, req.user_id, thread_id)
+        return ChatResponse(
+            answer=result["answer"],
+            thread_id=thread_id,
+            tool_calls=result["tool_calls"],
+        )
     except GraphRecursionError:
         return ChatResponse(
             answer="No logré encontrar información suficiente para responder tu consulta. "

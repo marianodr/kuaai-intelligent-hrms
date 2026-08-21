@@ -43,7 +43,33 @@ def init_agent(settings) -> None:
     logger.info(f"Agente inicializado con modelo {settings.groq_model} y {len(ALL_TOOLS)} herramientas")
 
 
-def chat(question: str, user_id: int, thread_id: str) -> str:
+def _extract_tool_calls(messages: list) -> list[dict]:
+    """Reconstruye qué herramientas invocó el agente en esta corrida a partir
+    de los mensajes intermedios que ya arma create_react_agent (AIMessage con
+    tool_calls + ToolMessage con el resultado). No cambia la lógica del
+    agente: solo lee estado que LangGraph ya mantiene internamente."""
+    results_by_call_id = {
+        msg.tool_call_id: msg.content
+        for msg in messages
+        if getattr(msg, "type", None) == "tool"
+    }
+
+    tool_calls = []
+    for msg in messages:
+        if getattr(msg, "type", None) != "ai":
+            continue
+        for tc in getattr(msg, "tool_calls", None) or []:
+            tool_calls.append(
+                {
+                    "tool": tc["name"],
+                    "args": tc["args"],
+                    "result": results_by_call_id.get(tc["id"]),
+                }
+            )
+    return tool_calls
+
+
+def chat(question: str, user_id: int, thread_id: str) -> dict:
     """Invoca el agente y persiste el intercambio en chat_history."""
     today = date.today()
     system = SYSTEM_PROMPT.format(today=today.isoformat(), year=today.year)
@@ -63,9 +89,10 @@ def chat(question: str, user_id: int, thread_id: str) -> str:
         config=config,
     )
     answer = result["messages"][-1].content
+    tool_calls = _extract_tool_calls(result["messages"])
 
     _save_history(user_id, question, answer, thread_id)
-    return answer
+    return {"answer": answer, "tool_calls": tool_calls}
 
 
 def _save_history(user_id: int, question: str, answer: str, thread_id: str | None = None) -> None:
