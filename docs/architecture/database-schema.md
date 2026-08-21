@@ -60,6 +60,25 @@ erDiagram
         integer user_id FK
         varchar role "user | assistant"
         text content
+        uuid thread_id FK "nullable"
+        timestamp created_at
+    }
+
+    conversation_threads {
+        uuid id PK
+        integer user_id FK
+        varchar name "default 'Nueva conversación'"
+        timestamp created_at
+        timestamp last_message_at
+    }
+
+    system_logs {
+        bigserial id PK
+        varchar level "INFO | WARN | ERROR"
+        varchar service "nest | fastapi"
+        varchar event
+        integer user_id FK "nullable"
+        jsonb detail
         timestamp created_at
     }
 
@@ -67,6 +86,9 @@ erDiagram
     users ||--o{ documents : "sube"
     documents ||--o{ document_chunks : "tiene"
     users ||--o{ chat_history : "genera"
+    users ||--o{ conversation_threads : "tiene"
+    conversation_threads ||--o{ chat_history : "agrupa"
+    users ||--o{ system_logs : "genera (opcional)"
 ```
 
 ---
@@ -149,7 +171,7 @@ Fragmentos de texto de los documentos con sus embeddings vectoriales. Es la tabl
 |---------|------|-------------|
 | `id` | `SERIAL PK` | Identificador autoincremental |
 | `document_id` | `UUID FK` | Referencia a `documents.id` (ON DELETE CASCADE) |
-| `content` | `TEXT` | Texto del fragmento (hasta ~1000 caracteres) |
+| `content` | `TEXT` | Texto del fragmento (hasta ~500 caracteres) |
 | `embedding` | `vector(384)` | Embedding generado por `paraphrase-multilingual-MiniLM-L12-v2` |
 | `chunk_index` | `INTEGER` | Posición del chunk dentro del documento (0-based) |
 | `created_at` | `TIMESTAMP` | Fecha de inserción |
@@ -174,7 +196,47 @@ Historial de conversaciones entre usuarios y el agente RAG. Cada par pregunta/re
 | `user_id` | `INTEGER FK` | Referencia a `users.id` (nullable) |
 | `role` | `VARCHAR(20)` | `user` o `assistant` |
 | `content` | `TEXT` | Texto del mensaje |
+| `thread_id` | `UUID FK` | Referencia a `conversation_threads.id` (nullable, `ON DELETE SET NULL`). Añadida por migración `002_conversation_threads.sql` |
 | `created_at` | `TIMESTAMP` | Timestamp del mensaje |
+
+---
+
+### `conversation_threads`
+Hilos de conversación del agente RAG — permite que un usuario tenga varias
+conversaciones separadas en paralelo (panel lateral en la página de chat del
+frontend). Agregada por migración `002_conversation_threads.sql` (Sprint 2).
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | `UUID PK` | Identificador generado por `gen_random_uuid()` |
+| `user_id` | `INTEGER FK` | Referencia a `users.id` (`ON DELETE CASCADE`) |
+| `name` | `VARCHAR(255)` | Nombre del hilo (default `'Nueva conversación'`) |
+| `created_at` | `TIMESTAMP` | Fecha de creación |
+| `last_message_at` | `TIMESTAMP` | Actualizado en cada mensaje (usado para el TTL de limpieza) |
+
+**Limpieza automática:** un cron en NestJS (`CleanupService`,
+`@Cron(EVERY_DAY_AT_3AM)`) borra los hilos con `last_message_at` de más de
+30 días (valor hardcodeado, no configurable por env var).
+
+---
+
+### `system_logs`
+Tabla de auditoría agregada por migración `003_system_logs.sql` (Sprint 3).
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | `BIGSERIAL PK` | Identificador autoincremental |
+| `level` | `VARCHAR(10)` | `INFO`, `WARN` o `ERROR`. Check constraint |
+| `service` | `VARCHAR(20)` | `nest` o `fastapi`. Check constraint |
+| `event` | `VARCHAR(100)` | Nombre del evento loggeado |
+| `user_id` | `INTEGER FK` | Referencia a `users.id` (nullable, `ON DELETE SET NULL`) |
+| `detail` | `JSONB` | Detalle estructurado del evento |
+| `created_at` | `TIMESTAMP` | Timestamp del evento |
+
+**⚠️ Tabla actualmente sin uso real:** ni `AuditLogMiddleware` (FastAPI,
+`app/middleware/audit_log.py`) ni `LoggingInterceptor` (NestJS,
+`src/logging/logging.interceptor.ts`) insertan filas acá — ambos solo
+loguean a stdout/archivo. El schema existe pero no hay código que lo pueble.
 
 ---
 
@@ -209,6 +271,18 @@ CREATE INDEX idx_chunks_document_id ON document_chunks(document_id);
 
 -- Historial de chat por usuario
 CREATE INDEX idx_chat_history_user_id ON chat_history(user_id);
+
+-- Hilos de conversación: listado por usuario y limpieza por antigüedad
+CREATE INDEX idx_threads_user_id ON conversation_threads(user_id);
+CREATE INDEX idx_threads_last_message ON conversation_threads(last_message_at);
+
+-- Historial de chat por hilo
+CREATE INDEX idx_chat_history_thread_id ON chat_history(thread_id);
+
+-- Logs de sistema: filtrado por fecha, nivel y evento
+CREATE INDEX idx_system_logs_created_at ON system_logs(created_at);
+CREATE INDEX idx_system_logs_level ON system_logs(level);
+CREATE INDEX idx_system_logs_event ON system_logs(event);
 ```
 
 ### Trigger de updated_at
@@ -239,3 +313,6 @@ CREATE TRIGGER employees_updated_at
 | `documents` | `uploaded_by` | `users.id` | FK | nullable |
 | `document_chunks` | `document_id` | `documents.id` | FK | **ON DELETE CASCADE** (eliminar doc borra sus chunks) |
 | `chat_history` | `user_id` | `users.id` | FK | nullable |
+| `chat_history` | `thread_id` | `conversation_threads.id` | FK | nullable, **ON DELETE SET NULL** |
+| `conversation_threads` | `user_id` | `users.id` | FK | **ON DELETE CASCADE** |
+| `system_logs` | `user_id` | `users.id` | FK | nullable, **ON DELETE SET NULL** |

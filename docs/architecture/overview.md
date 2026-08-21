@@ -51,7 +51,7 @@ El agente LangChain orquesta dinámicamente múltiples herramientas para respond
 graph TB
     USER["👤 Usuario\n(Admin / RRHH)"]
     IOT["📟 Nodo IoT\n(Pico 2W + RC522)"]
-    GROQ["☁️ Groq API\n(Llama 3.1 8B)"]
+    GROQ["☁️ Groq API\n(qwen/qwen3.6-27b)"]
 
     subgraph PRES ["Presentación"]
         FE["🌐 Frontend\nNext.js + Tailwind + shadcn/ui\n:3000"]
@@ -99,9 +99,9 @@ graph TB
 
 | Servicio | Tecnología | Responsabilidades |
 |----------|-----------|-------------------|
-| **Frontend** | Next.js 14 + Tailwind + shadcn/ui | Login, dashboard de asistencias, gestión de empleados, carga de documentos, chat con el agente |
-| **Backend NestJS** | NestJS + TypeORM + Passport | Auth JWT con roles, CRUD empleados, suscripción MQTT, lógica de asistencia, cron 16:00, métricas dashboard. Actúa como **API gateway/proxy** hacia FastAPI para las rutas de documentos y agente |
-| **Backend FastAPI** | FastAPI + LangChain + Groq | Ingestión de PDFs, pipeline de embeddings, agente RAG, endpoints de chat, historial de conversación. Solo accesible desde NestJS en producción |
+| **Frontend** | Next.js 16 + Tailwind + shadcn/ui | Login, dashboard de asistencias, gestión de empleados y usuarios RRHH, carga de documentos, chat con el agente (con panel de hilos) |
+| **Backend NestJS** | NestJS + TypeORM + Passport | Auth JWT con roles, CRUD empleados y usuarios RRHH, suscripción MQTT, lógica de asistencia, cron 16:00 (salida automática) y cron 3AM (limpieza de hilos >30 días), métricas dashboard. Actúa como **API gateway/proxy** hacia FastAPI para las rutas de documentos, agente y threads |
+| **Backend FastAPI** | FastAPI + LangChain + Groq | Ingestión de PDFs, pipeline de embeddings, agente RAG, endpoints de chat, hilos de conversación (`/threads`), historial de conversación. Solo accesible desde NestJS en producción |
 | **PostgreSQL + pgvector** | PostgreSQL 16 | Datos relacionales (empleados, asistencias, usuarios, documentos) + vectores de embeddings (384 dims) |
 | **MinIO** | MinIO (S3-compatible) | Almacenamiento de archivos PDF originales subidos por usuarios |
 | **Mosquitto** | Eclipse Mosquitto 2 | Broker MQTT que recibe eventos del nodo IoT y los distribuye a los suscriptores |
@@ -113,13 +113,13 @@ graph TB
 
 | Componente | Tecnología | Versión |
 |-----------|-----------|---------|
-| Frontend | Next.js + TypeScript + Tailwind CSS + shadcn/ui | 14+ |
+| Frontend | Next.js + TypeScript + Tailwind CSS + shadcn/ui | 16 |
 | Backend principal | NestJS + TypeScript | 10+ |
 | Backend IA | FastAPI + Python | 0.115+ |
 | Base de datos | PostgreSQL + pgvector | 16 |
 | Object storage | MinIO | Latest |
 | Mensajería IoT | MQTT + Eclipse Mosquitto | 2 |
-| LLM | Groq API — Llama 3.1 8B Instant | — |
+| LLM | Groq API — qwen/qwen3.6-27b | — |
 | Embeddings | SentenceTransformers — paraphrase-multilingual-MiniLM-L12-v2 | 384 dims |
 | Extracción PDF | Docling | 2+ |
 | Framework agente | LangChain + LangGraph | 0.3+ / 1.2+ |

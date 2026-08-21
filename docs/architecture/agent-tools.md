@@ -2,7 +2,7 @@
 
 ## Descripción del agente (patrón ReAct)
 
-El agente de Kuaai utiliza el patrón **ReAct** (Reasoning + Acting), implementado con `create_react_agent` de LangGraph y el LLM `Llama 3.1 8B` via Groq API.
+El agente de Kuaai utiliza el patrón **ReAct** (Reasoning + Acting), implementado con `create_react_agent` de LangGraph y el LLM `qwen/qwen3.6-27b` via Groq API (ver [ADR-004](../decisions/ADR-004-groq-model-migration-qwen.md) por la migración desde Llama 3.1 8B).
 
 **Ciclo de razonamiento:**
 
@@ -17,8 +17,14 @@ El agente de Kuaai utiliza el patrón **ReAct** (Reasoning + Acting), implementa
 **Configuración del agente:**
 
 ```python
+llm = ChatGroq(
+    model=settings.groq_model,       # qwen/qwen3.6-27b
+    api_key=settings.groq_api_key,
+    temperature=0,
+    max_retries=0,
+)
 agent = create_react_agent(
-    model=ChatGroq(model="llama-3.1-8b-instant", temperature=0, max_retries=0),
+    model=llm,
     tools=ALL_TOOLS,                # 6 herramientas
     checkpointer=MemorySaver(),     # memoria de conversación por thread_id
 )
@@ -32,7 +38,7 @@ result = agent.invoke(
         ]
     },
     config={
-        "configurable": {"thread_id": "user-1"},
+        "configurable": {"thread_id": thread_id},  # id de conversation_threads, o "user-{user_id}" si no se especifica
         "recursion_limit": 25,
     }
 )
@@ -309,7 +315,7 @@ LIMIT 5;
 ```mermaid
 flowchart TD
     Q["❓ Pregunta del usuario"]
-    LLM["🧠 Groq Llama 3.1 8B\nAnaliza la intención"]
+    LLM["🧠 Groq qwen/qwen3.6-27b\nAnaliza la intención"]
 
     Q --> LLM
 

@@ -240,6 +240,74 @@ curl -X DELETE http://localhost:3001/employees/1 \
 
 ---
 
+## Endpoints de Users
+
+Gestión de usuarios RRHH. Requiere rol `admin` (`@Roles('admin')` +
+`RolesGuard`) — el único usuario `admin` se crea al bootstrap del backend
+(`AdminSeeder`, a partir de `ADMIN_EMAIL`/`ADMIN_PASSWORD`), no por estos
+endpoints. Todos los usuarios creados acá son rol `rrhh`.
+
+### `GET /users`
+
+Lista todos los usuarios.
+
+**Headers:** `Authorization: Bearer <token>` (admin)
+
+**curl:**
+```bash
+curl http://localhost:3001/users \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### `GET /users/:id`
+
+Detalle de un usuario.
+
+---
+
+### `POST /users`
+
+Crea un usuario RRHH.
+
+**Body:**
+```json
+{
+  "email": "rrhh@empresa.com",
+  "password": "contraseña123"
+}
+```
+
+`password` requiere mínimo 8 caracteres. El rol siempre se asigna como `rrhh` (no es un campo del body).
+
+**curl:**
+```bash
+curl -X POST http://localhost:3001/users \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"rrhh@empresa.com","password":"contraseña123"}'
+```
+
+---
+
+### `PATCH /users/:id`
+
+Actualiza email, password y/o `is_active`. El rol no es editable.
+
+**Body (todos opcionales):**
+```json
+{ "email": "nuevo@empresa.com", "is_active": false }
+```
+
+---
+
+### `PATCH /users/:id/deactivate`
+
+Desactiva un usuario (`is_active = false`).
+
+---
+
 ## Endpoints de Dashboard
 
 ### `GET /dashboard/today`
@@ -441,6 +509,31 @@ Detalle de un documento.
 
 ---
 
+### `GET /documents/:id/download`
+
+Descarga el PDF original (usado por el visor de PDF embebido en el frontend). El JWT también acepta `?token=` como query param para poder usarse dentro de un `<iframe>`, donde no se puede fijar el header `Authorization`.
+
+```bash
+curl "http://localhost:3001/documents/:id/download?token=$TOKEN" -o documento.pdf
+```
+
+---
+
+### `GET /documents/:id/chunks`
+
+Lista los chunks de un documento con métricas de embedding (panel admin).
+
+---
+
+### `POST /documents/chunks/search`
+
+Búsqueda semántica manual sobre chunks.
+
+**Headers:** `Authorization: Bearer <token>`
+**Body:** `{ "query": string, "document_id"?: string, "limit"?: number }` (default `limit=8`)
+
+---
+
 ### `DELETE /documents/:id`
 
 Elimina documento, chunks y archivo de MinIO.
@@ -473,9 +566,55 @@ curl -X POST http://localhost:3001/agent/chat \
 Historial de conversación del usuario.
 
 **Headers:** `Authorization: Bearer <token>`  
-**Query:** `?limit=50`
+**Query:** `?limit=50` (default) — `&thread_id=<uuid>` filtra por hilo
 
 **Respuesta `200`:** array `[{ role, content, created_at }]`
+
+---
+
+## Endpoints de Threads
+
+Hilos de conversación múltiples (Sprint 2). El cron `CleanupService` (NestJS,
+todos los días a las 3AM) borra automáticamente los hilos con más de 30 días
+sin mensajes.
+
+### `POST /threads`
+
+Crea un hilo de conversación.
+
+**Headers:** `Authorization: Bearer <token>`  
+**Body:** `{ "user_id": integer, "name"?: string }`
+
+**Respuesta `200`:** `{ id, user_id, name, created_at, last_message_at }`
+
+```bash
+curl -X POST http://localhost:3001/threads \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 1, "name": "Consultas de vacaciones"}'
+```
+
+---
+
+### `GET /threads/:userId`
+
+Lista los hilos de un usuario (más recientes primero).
+
+**Respuesta `200`:** array `[{ id, name, created_at, last_message_at }]`
+
+---
+
+### `PATCH /threads/:threadId/rename`
+
+Renombra un hilo.
+
+**Body:** `{ "name": string }`
+
+---
+
+### `DELETE /threads/:threadId`
+
+Elimina un hilo (los mensajes en `chat_history` quedan con `thread_id = null`, no se borran).
 
 ---
 

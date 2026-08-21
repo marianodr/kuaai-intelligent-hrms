@@ -39,7 +39,7 @@ graph TB
     KUAAI["🏢 Kuaai HRMS\nSistema de gestión de RRHH\ncon IoT y agente RAG inteligente"]
 
     subgraph EXT [" "]
-        GROQ["☁️ Groq API\nLLM Llama 3.1 8B"]
+        GROQ["☁️ Groq API\nLLM qwen/qwen3.6-27b"]
         IOT_CTX["📟 Nodo IoT\nRaspberry Pi Pico 2W"]
     end
 
@@ -60,7 +60,7 @@ graph TB
 graph TB
     USER["👤 Usuario\n(Admin / RRHH)"]
     IOT["📟 Nodo IoT\n(Pico 2W + RC522)"]
-    GROQ["☁️ Groq API\n(Llama 3.1 8B)"]
+    GROQ["☁️ Groq API\n(qwen/qwen3.6-27b)"]
 
     subgraph PRES ["Presentación"]
         FE["🌐 Frontend\nNext.js + Tailwind + shadcn/ui\n:3000"]
@@ -126,7 +126,8 @@ kuaai-intelligent-hrms/
 ├── docker-compose.dev.yml
 ├── .env.example
 ├── .gitignore
-└── PLAN.md
+├── ARCHITECTURE.md      # este documento
+└── DESIGN.md
 ```
 
 ### Diagrama de deployment (Docker Compose)
@@ -212,11 +213,14 @@ graph LR
 
         subgraph "Dominio"
             AUTH["AuthModule\n/auth"]
-            USERS["UsersModule\n(internal)"]
+            USERS["UsersModule\n/users (admin only)"]
             EMP["EmployeesModule\n/employees"]
             ATT["AttendanceModule\n(internal)"]
             DASH["DashboardModule\n/dashboard"]
             MQ["MqttModule\n(MQTT listener)"]
+            PROXY["ProxyModule\n/documents · /agent · /threads\n(gateway hacia FastAPI)"]
+            SEED["SeederModule\n(admin bootstrap)"]
+            CLEAN["CleanupModule\n(cron 3AM — TTL threads)"]
         end
     end
 
@@ -229,16 +233,22 @@ graph LR
     AM --> ATT
     AM --> DASH
     AM --> MQ
+    AM --> PROXY
+    AM --> SEED
+    AM --> CLEAN
 
     AUTH -->|"usa"| USERS
     MQ -->|"usa"| ATT
     ATT -->|"usa"| EMP
     DASH -->|"usa"| ATT
     DASH -->|"usa"| EMP
+    PROXY -->|"proxy REST"| FAPI_REF["FastAPI :8000"]
 
     style AUTH fill:#16a34a,color:#fff
     style MQ fill:#8b5cf6,color:#fff
     style ATT fill:#f59e0b,color:#fff
+    style PROXY fill:#dc2626,color:#fff
+    style CLEAN fill:#6b7280,color:#fff
 ```
 
 ### Endpoints expuestos
@@ -258,6 +268,16 @@ graph LR
 | `GET` | `/dashboard/recent-entries` | JWT | Últimas entradas del día actual |
 | `GET` | `/dashboard/tardiness` | JWT | Reporte de tardanzas |
 | `GET` | `/dashboard/monthly-absences` | JWT | Reporte de ausencias del mes |
+| `GET` | `/users` | JWT + admin | Lista usuarios RRHH |
+| `GET` | `/users/:id` | JWT + admin | Detalle de usuario |
+| `POST` | `/users` | JWT + admin | Crea usuario RRHH (el admin único se crea por seeder, no por este endpoint) |
+| `PATCH` | `/users/:id` | JWT + admin | Edita email/password/is_active |
+| `PATCH` | `/users/:id/deactivate` | JWT + admin | Desactiva usuario |
+
+Además, `ProxyModule` reenvía con guard JWT (sin chequeo de rol) las rutas
+`/documents/*`, `/agent/*` y `/threads/*` hacia FastAPI — ver
+[docs/api/nest-endpoints.md](docs/api/nest-endpoints.md) y la tabla de
+endpoints FastAPI más abajo.
 
 ### Lógica de asistencia (AttendanceService)
 
@@ -346,8 +366,13 @@ graph TB
             EMB["embeddings.py\nSentenceTransformer\nparaphrase-multilingual-MiniLM-L12-v2 (384 dims)"]
 
             subgraph "routers/"
-                R_DOCS["documents.py\nPOST /process\nGET · DELETE"]
+                R_DOCS["documents.py\nupload · process · register\nGET · DELETE · download · chunks\nchunks/search"]
                 R_AGENT["agent.py\nPOST /chat\nGET /history"]
+                R_THREADS["threads.py\nCRUD conversation_threads\n(sin service propio)"]
+            end
+
+            subgraph "middleware/"
+                MW_AUDIT["audit_log.py\nAuditLogMiddleware\n(loguea método/status/latencia\nNO escribe en system_logs)"]
             end
 
             subgraph "services/"
@@ -365,11 +390,14 @@ graph TB
     MAIN --> DB
     MAIN --> MINIO2
     MAIN --> EMB
+    MAIN --> MW_AUDIT
     MAIN --> R_DOCS
     MAIN --> R_AGENT
+    MAIN --> R_THREADS
 
     R_DOCS --> S_ING
     R_AGENT --> S_AGT
+    R_THREADS --> DB
     S_ING --> DB
     S_ING --> MINIO2
     S_ING --> EMB
@@ -381,6 +409,7 @@ graph TB
     style MAIN fill:#dc2626,color:#fff
     style S_AGT fill:#7c3aed,color:#fff
     style TOOLS fill:#b45309,color:#fff
+    style R_THREADS fill:#0891b2,color:#fff
 ```
 
 ### Pipeline de ingestión de documentos
@@ -431,7 +460,7 @@ sequenceDiagram
     participant N as NestJS (proxy)
     participant FA as FastAPI /agent/chat
     participant AG as Agente LangChain\n(create_react_agent)
-    participant LLM as Groq\n(Llama 3.1 8B)
+    participant LLM as Groq\n(qwen/qwen3.6-27b)
     participant T as Tools (6)
     participant PG as PostgreSQL+pgvector
     participant DB as chat_history
@@ -487,14 +516,65 @@ sequenceDiagram
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
+| `POST` | `/documents/upload` | Sube PDF a MinIO + registra documento (entry point real desde el frontend) |
 | `POST` | `/documents/register` | Registra documento (status: PROCESSING) |
 | `POST` | `/documents/process` | Lanza pipeline ingestión en background |
 | `GET` | `/documents/` | Lista todos los documentos |
 | `GET` | `/documents/:id` | Detalle de documento |
+| `GET` | `/documents/:id/download` | Descarga el PDF original (para el visor en frontend) |
+| `GET` | `/documents/:id/chunks` | Lista los chunks generados de un documento |
+| `POST` | `/documents/chunks/search` | Búsqueda semántica manual sobre chunks (panel admin) |
 | `DELETE` | `/documents/:id` | Elimina documento y sus chunks |
 | `POST` | `/agent/chat` | Consulta al agente RAG |
-| `GET` | `/agent/history/:user_id` | Historial de conversación |
+| `GET` | `/agent/history/:user_id` | Historial de conversación (filtrable por `thread_id`) |
+| `POST` | `/threads/` | Crea un hilo de conversación |
+| `GET` | `/threads/:user_id` | Lista los hilos de un usuario |
+| `PATCH` | `/threads/:thread_id/rename` | Renombra un hilo |
+| `DELETE` | `/threads/:thread_id` | Elimina un hilo |
 | `GET` | `/health` | Health check |
+
+### Hilos de conversación y logs de sistema (Sprints 2/3)
+
+Agregado después de la fase 3 inicial (commits `68a2952`, `23a1ba1`,
+`89168d1`, `15617ba` — 2026-06-16), no cubierto por los docs de fase
+originales:
+
+**Hilos múltiples (`conversation_threads`):** antes de este cambio, cada
+usuario tenía un único thread implícito (`user-{user_id}`) para memoria del
+agente. Ahora el frontend puede crear varios hilos por usuario (panel
+lateral en la página de chat), cada uno con su propio historial en
+`chat_history.thread_id`. Un cron (`CleanupService`, `@Cron(EVERY_DAY_AT_3AM)`
+en `apps/backend-nest/src/cleanup/cleanup.service.ts`) borra los hilos con
+`last_message_at` de más de 30 días (valor hardcodeado, no configurable por
+env var).
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant FE as Next.js
+    participant N as NestJS (proxy /threads)
+    participant FA as FastAPI /threads
+    participant PG as PostgreSQL
+
+    U->>FE: Crea nuevo hilo / selecciona uno existente
+    FE->>N: POST /threads {user_id, name}
+    N->>FA: proxy → POST /threads/
+    FA->>PG: INSERT conversation_threads
+    PG-->>FE: {id, name, created_at, last_message_at}
+
+    Note over N: Cron diario 03:00 —\nCleanupService.cleanupStaleThreads()
+    N->>PG: DELETE conversation_threads\nWHERE last_message_at < NOW() - 30 days
+```
+
+**Logs de sistema (`system_logs`):** la migración `003_system_logs.sql`
+agregó esta tabla para auditoría (`level`, `service`, `event`, `detail
+JSONB`). En la práctica, **hoy nada la escribe**: `AuditLogMiddleware`
+(FastAPI, `app/middleware/audit_log.py`) y `LoggingInterceptor` (NestJS,
+`src/logging/logging.interceptor.ts`) solo loguean método/ruta/status/latencia
+al logger de cada proceso (stdout / archivo), no insertan filas en la tabla.
+Es un gap entre lo que sugiere el nombre del commit ("persistidos en la
+tabla system_logs") y el código real — vale la pena revisarlo si se necesita
+auditoría persistente real.
 
 ---
 
@@ -559,6 +639,25 @@ erDiagram
         integer user_id FK
         varchar role "user | assistant"
         text content
+        uuid thread_id FK "nullable"
+        timestamp created_at
+    }
+
+    conversation_threads {
+        uuid id PK
+        integer user_id FK
+        varchar name "default 'Nueva conversación'"
+        timestamp created_at
+        timestamp last_message_at
+    }
+
+    system_logs {
+        bigserial id PK
+        varchar level "INFO | WARN | ERROR"
+        varchar service "nest | fastapi"
+        varchar event
+        integer user_id FK "nullable"
+        jsonb detail
         timestamp created_at
     }
 
@@ -566,7 +665,16 @@ erDiagram
     users ||--o{ documents : "sube"
     documents ||--o{ document_chunks : "tiene"
     users ||--o{ chat_history : "genera"
+    users ||--o{ conversation_threads : "tiene"
+    conversation_threads ||--o{ chat_history : "agrupa"
+    users ||--o{ system_logs : "genera (opcional)"
 ```
+
+> **Nota:** `system_logs` (migración `003_system_logs.sql`) existe en el
+> esquema pero **hoy no la escribe ningún código** — ni
+> `AuditLogMiddleware` (FastAPI) ni `LoggingInterceptor` (NestJS) insertan
+> ahí; ambos solo loguean a stdout/archivo. Ver la sección de threads y
+> logs de sistema más abajo.
 
 ---
 

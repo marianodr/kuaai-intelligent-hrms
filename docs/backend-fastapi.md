@@ -302,7 +302,7 @@ MinIO (PDF bytes)
     ↓
 Docling (extracción de texto → Markdown)
     ↓
-RecursiveCharacterTextSplitter (chunks de 1000 chars, 100 overlap)
+RecursiveCharacterTextSplitter (chunks de 500 chars, 50 overlap)
     ↓
 SentenceTransformers (embeddings batch de 384 dims)
     ↓
@@ -606,7 +606,7 @@ Estas tablas son gestionadas por el backend NestJS. FastAPI las lee pero no las 
   1. Descarga PDF de MinIO (bytes)
   2. Escribe archivo temporal en disco
   3. Docling extrae texto → Markdown
-  4. Splitter corta en chunks de 1000 chars
+  4. Splitter corta en chunks de 500 chars
   5. SentenceTransformers genera embeddings batch
   6. Inserta chunks + embeddings en document_chunks
   7. Actualiza documents.status = "READY"
