@@ -73,8 +73,7 @@ seguir con el siguiente.
 | 9 | `feat: visor de PDF...` | `minio_client.py` (`get_bytes`), endpoint de descarga, `PdfViewer.tsx`, `jwt.strategy.ts` |
 | 10 | `docs: documentar lógica del seed...` | README |
 | 11 | `feat: OCR configurable en Docling` | `.env.example`, `config.py`, `ingestion.py` |
-| 12 | `feat: script de generación de PDFs de RRHH` | `scripts/generate_hr_docs.py`, README |
-| 13 | `feat: script de evaluación...RAGAS` | `scripts/eval_rag.py`, `requirements-eval.txt`, README |
+| 12 | `feat: script de evaluación...RAGAS` | `scripts/eval_rag.py`, `requirements-eval.txt`, README |
 
 `feature/deploy-digitalocean` (sobre el `master` anterior):
 

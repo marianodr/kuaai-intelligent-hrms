@@ -244,15 +244,6 @@ El agente tiene 6 herramientas:
 
 ## Scripts de utilidad
 
-### Generar PDFs de RRHH enriquecidos
-
-```bash
-pip install reportlab
-python scripts/generate_hr_docs.py
-```
-
-Genera 4 PDFs en `docs/hr-pdfs/` con contenido detallado sobre vacaciones, contratación, licencias y beneficios. Subir desde la sección `/documents` del frontend para mejorar las respuestas del agente.
-
 ### Evaluación del pipeline RAG (RAGAS)
 
 ```bash

@@ -7,7 +7,6 @@
 | `seed-db.sh` | Carga empleados y asistencias de prueba. Ver README raíz. |
 | `test-e2e.sh` | Prueba los 6 flujos principales del sistema end-to-end (19 checks). |
 | `test-agent-tools.py` | Verifica, herramienta por herramienta, que el agente RAG invoque la tool correcta, con argumentos razonables, y que use su resultado real en la respuesta — algo que `test-e2e.sh` no chequea (solo mira que `answer` no esté vacío). Ver detalle en [`docs/phases/phase-6-integration.md`](../docs/phases/phase-6-integration.md). |
-| `generate_hr_docs.py` | Genera 4 PDFs de RRHH sintéticos en `docs/hr-pdfs/` (requiere `pip install reportlab`). |
 
 ## Evaluación del pipeline RAG (RAGAS)
 
