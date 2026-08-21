@@ -32,7 +32,7 @@ Variables de entorno (desde .env):
     GOOGLE_API_KEY o GEMINI_API_KEY           — juez RAGAS (Gemini, cualquiera de los dos nombres sirve)
     RAGAS_JUDGE_MODEL (default: gemini-3.1-flash-lite — gemini-3.6-flash pega el
         límite diario de 20 req del free tier casi de inmediato, flash-lite no)
-    EMBEDDINGS_MODEL (default: all-MiniLM-L6-v2)
+    EMBEDDINGS_MODEL (default: paraphrase-multilingual-MiniLM-L12-v2)
 """
 
 import argparse
@@ -64,7 +64,7 @@ POSTGRES_USER     = os.getenv("POSTGRES_USER", "kuaai_user")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "kuaai_password")
 GROQ_API_KEY      = _file.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL        = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
-EMBEDDINGS_MODEL  = os.getenv("EMBEDDINGS_MODEL", "all-MiniLM-L6-v2")
+EMBEDDINGS_MODEL  = os.getenv("EMBEDDINGS_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
 # El SDK de Google no tiene un nombre de env var único: google-genai usa GOOGLE_API_KEY,
 # pero muchos setups (incluido este .env) usan GEMINI_API_KEY. Soportamos ambos.
 GOOGLE_API_KEY    = (_file.get("GOOGLE_API_KEY") or _file.get("GEMINI_API_KEY")

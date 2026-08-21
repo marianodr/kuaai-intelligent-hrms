@@ -191,7 +191,7 @@ graph TB
 | `MQTT_TOPIC_ATTENDANCE` | `attendance/checkin` | Topic MQTT del nodo IoT |
 | `GROQ_API_KEY` | — | API key de Groq (requerida) |
 | `JWT_SECRET` | — | Secret para firmar JWT (requerido) |
-| `EMBEDDINGS_MODEL` | `all-MiniLM-L6-v2` | Modelo de embeddings (384 dims) |
+| `EMBEDDINGS_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | Modelo de embeddings (384 dims) |
 
 ---
 
@@ -343,7 +343,7 @@ graph TB
             CONFIG2["config.py\npydantic-settings"]
             DB["database.py\nThreadedConnectionPool\npsycopg2 + pgvector"]
             MINIO2["minio_client.py\nminio-py"]
-            EMB["embeddings.py\nSentenceTransformer\nall-MiniLM-L6-v2 (384 dims)"]
+            EMB["embeddings.py\nSentenceTransformer\nparaphrase-multilingual-MiniLM-L12-v2 (384 dims)"]
 
             subgraph "routers/"
                 R_DOCS["documents.py\nPOST /process\nGET · DELETE"]
@@ -410,7 +410,7 @@ sequenceDiagram
     F->>D: convert(pdf_path)
     D-->>F: texto en Markdown
 
-    F->>F: RecursiveCharacterTextSplitter\nchunk_size=1000, overlap=100
+    F->>F: RecursiveCharacterTextSplitter\nchunk_size=500, overlap=50
     Note over F: N chunks generados
 
     F->>S: encode(chunks, batch_size=32)

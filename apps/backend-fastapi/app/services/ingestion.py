@@ -11,10 +11,10 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# 1000 chars con 10% overlap — recomendado por skill langchain-rag
+# 500 chars con 10% overlap — default desde ADR-005 (matriz 2x2 chunk_size x embeddings)
 _splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=100,
+    chunk_size=500,
+    chunk_overlap=50,
     separators=["\n\n", "\n", ". ", " ", ""],
 )
 

@@ -44,7 +44,7 @@ Requiere el stack levantado (`docker compose up -d`) y `GROQ_API_KEY` +
 | Rol | Modelo | Variable de entorno |
 |---|---|---|
 | Generación (pipeline RAG, ambos scripts) | Groq — `qwen/qwen3.6-27b` | `GROQ_MODEL` |
-| Embeddings (retrieval) | SentenceTransformers — `all-MiniLM-L6-v2` | `EMBEDDINGS_MODEL` |
+| Embeddings (retrieval) | SentenceTransformers — `paraphrase-multilingual-MiniLM-L12-v2` | `EMBEDDINGS_MODEL` |
 | Juez RAGAS | Gemini — `gemini-3.1-flash-lite`, vía el endpoint OpenAI-compatible de Gemini | `RAGAS_JUDGE_MODEL`, `GOOGLE_API_KEY`/`GEMINI_API_KEY` |
 
 `gemini-3.6-flash` (el modelo "grande" equivalente) también funciona técnicamente, pero

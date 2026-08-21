@@ -202,7 +202,7 @@ export default function AdminChunksPage() {
         {selectedDoc && (
           <div className="text-right text-sm text-muted-foreground">
             <p><span className="font-medium">{chunks.length}</span> chunks</p>
-            <p>384 dims · all-MiniLM-L6-v2</p>
+            <p>384 dims · paraphrase-multilingual-MiniLM-L12-v2</p>
           </div>
         )}
       </div>

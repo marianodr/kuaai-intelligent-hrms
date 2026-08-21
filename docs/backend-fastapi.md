@@ -42,7 +42,7 @@ Este servicio es llamado por el backend NestJS y por el frontend Next.js, nunca 
 | Almacenamiento de archivos | MinIO | 7.2 |
 | Extracción de texto de PDFs | Docling | 2.0 |
 | Chunking de texto | LangChain Text Splitters | 0.3 |
-| Embeddings | SentenceTransformers (`all-MiniLM-L6-v2`) | 3.0 |
+| Embeddings | SentenceTransformers (`paraphrase-multilingual-MiniLM-L12-v2`) | 3.0 |
 | LLM | Groq (qwen/qwen3.6-27b) | — |
 | Agente IA | LangGraph ReAct | 0.2 |
 | Definición de herramientas | LangChain Core | 0.3 |
@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     groq_model: str = "qwen/qwen3.6-27b"
 
     # SentenceTransformers
-    embeddings_model: str = "all-MiniLM-L6-v2"
+    embeddings_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
     embeddings_dimensions: int = 384
 
     class Config:
@@ -208,11 +208,14 @@ minio_client.upload_bytes("docs/contrato.pdf", file_bytes, "application/pdf")
 
 ## 8. Embeddings vectoriales
 
-`app/embeddings.py` gestiona el modelo `all-MiniLM-L6-v2` de SentenceTransformers como singleton en memoria.
+`app/embeddings.py` gestiona el modelo `paraphrase-multilingual-MiniLM-L12-v2` de SentenceTransformers como singleton en memoria.
 
 ### El modelo
 
-`all-MiniLM-L6-v2` es un modelo compacto (22M parámetros) que produce vectores de **384 dimensiones** con alta calidad semántica para búsqueda. Es ideal para el MVP por su balance velocidad/calidad y porque corre en CPU sin necesidad de GPU.
+`paraphrase-multilingual-MiniLM-L12-v2` produce vectores de **384 dimensiones**
+con soporte multilingüe (incluye español), corre en CPU sin necesidad de GPU, y
+reemplazó a `all-MiniLM-L6-v2` como default tras compararlos en una matriz 2x2
+junto con chunk_size (ver [ADR-005](decisions/ADR-005-chunk-size-embeddings-defaults.md)).
 
 ### Funciones
 
@@ -346,14 +349,14 @@ Docling exporta el texto como Markdown, preservando la estructura del documento 
 
 ```python
 _splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=100,
+    chunk_size=500,
+    chunk_overlap=50,
     separators=["\n\n", "\n", ". ", " ", ""],
 )
 ```
 
-- `chunk_size=1000`: cada chunk tiene hasta 1000 caracteres.
-- `chunk_overlap=100`: 10% de overlap entre chunks contiguos para que el contexto no se corte abruptamente en los bordes.
+- `chunk_size=500`: cada chunk tiene hasta 500 caracteres.
+- `chunk_overlap=50`: 10% de overlap entre chunks contiguos para que el contexto no se corte abruptamente en los bordes.
 - `separators`: el splitter intenta cortar en estos separadores en orden de preferencia (párrafo > línea > oración > espacio > forzado).
 
 #### Almacenamiento en pgvector
@@ -680,7 +683,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 ```dockerfile
 FROM base AS production
 COPY . .
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
 ```
 
@@ -713,7 +716,7 @@ RUN apt-get install -y libpq-dev gcc g++ libgl1 libglib2.0-0
 | `MINIO_BUCKET_DOCUMENTS` | `documents` | No | Bucket para documentos PDF |
 | `GROQ_API_KEY` | — | **Sí** | API key de Groq |
 | `GROQ_MODEL` | `qwen/qwen3.6-27b` | No | Modelo Groq a usar |
-| `EMBEDDINGS_MODEL` | `all-MiniLM-L6-v2` | No | Modelo SentenceTransformers |
+| `EMBEDDINGS_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | No | Modelo SentenceTransformers |
 | `EMBEDDINGS_DIMENSIONS` | `384` | No | Dimensiones del vector |
 | `FASTAPI_PORT` | `8000` | No | Puerto de escucha |
 

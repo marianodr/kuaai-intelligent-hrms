@@ -150,7 +150,7 @@ Fragmentos de texto de los documentos con sus embeddings vectoriales. Es la tabl
 | `id` | `SERIAL PK` | Identificador autoincremental |
 | `document_id` | `UUID FK` | Referencia a `documents.id` (ON DELETE CASCADE) |
 | `content` | `TEXT` | Texto del fragmento (hasta ~1000 caracteres) |
-| `embedding` | `vector(384)` | Embedding generado por `all-MiniLM-L6-v2` |
+| `embedding` | `vector(384)` | Embedding generado por `paraphrase-multilingual-MiniLM-L12-v2` |
 | `chunk_index` | `INTEGER` | Posición del chunk dentro del documento (0-based) |
 | `created_at` | `TIMESTAMP` | Fecha de inserción |
 

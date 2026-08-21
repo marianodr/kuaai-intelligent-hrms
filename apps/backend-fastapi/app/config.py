@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     groq_model: str = "qwen/qwen3.6-27b"
 
     # SentenceTransformers
-    embeddings_model: str = "all-MiniLM-L6-v2"
+    embeddings_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
     embeddings_dimensions: int = 384
 
     # FastAPI

@@ -124,11 +124,19 @@ No siempre hay un ganador claro en todas las métricas. La prioridad depende del
 
 ### Hipótesis a validar
 
-1. **¿El modelo de embeddings en español mejora los scores?**
-   Comparar `all-MiniLM-L6-v2` vs `paraphrase-multilingual-mpnet-base-v2` con el mismo dataset.
+1. ~~**¿El modelo de embeddings en español mejora los scores?**~~ **Resuelto
+   (2026-08-20/21)**: se corrió una matriz 2x2 de chunk_size (1000 vs 500) x
+   modelo de embeddings (`all-MiniLM-L6-v2` vs `paraphrase-multilingual-MiniLM-L12-v2`,
+   no `mpnet-base-v2` como se planteaba acá) con RAGAS sobre `scripts/dataset.json`
+   (20 muestras, juez `gemini-3.5-flash-lite`). Ganó chunk_size=500 +
+   multilingual en las 4 métricas. Ambos se adoptaron como default — ver
+   [ADR-005](decisions/ADR-005-chunk-size-embeddings-defaults.md) para los
+   resultados completos y el archivo `scripts/results_20260821_002945_chunk500_multilingual.json`.
 
 2. **¿El chunk size actual es óptimo?**
-   Los chunks actuales parecen tener entre 200 y 1000 chars (~50–250 tokens). Probar tamaños fijos (512 tokens) podría dar retrieval más predecible.
+   Resuelto parcialmente por el punto 1 (500 > 1000 en la comparación
+   corrida). Queda pendiente probar otros tamaños (ej. 256, 750) o tamaños
+   fijos en tokens en vez de caracteres.
 
 3. **¿k=4 es suficiente?**
    Si Context Recall es bajo, aumentar a k=6 u 8 y ver si mejora sin degradar Faithfulness.

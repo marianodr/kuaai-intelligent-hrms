@@ -4,7 +4,7 @@ import numpy as np
 _model: SentenceTransformer | None = None
 
 
-def init_model(model_name: str = "all-MiniLM-L6-v2") -> None:
+def init_model(model_name: str = "paraphrase-multilingual-MiniLM-L12-v2") -> None:
     global _model
     _model = SentenceTransformer(model_name)
 

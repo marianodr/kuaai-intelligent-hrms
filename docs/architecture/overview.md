@@ -120,7 +120,7 @@ graph TB
 | Object storage | MinIO | Latest |
 | Mensajería IoT | MQTT + Eclipse Mosquitto | 2 |
 | LLM | Groq API — Llama 3.1 8B Instant | — |
-| Embeddings | SentenceTransformers — all-MiniLM-L6-v2 | 384 dims |
+| Embeddings | SentenceTransformers — paraphrase-multilingual-MiniLM-L12-v2 | 384 dims |
 | Extracción PDF | Docling | 2+ |
 | Framework agente | LangChain + LangGraph | 0.3+ / 1.2+ |
 | ORM | TypeORM | 0.3+ |
