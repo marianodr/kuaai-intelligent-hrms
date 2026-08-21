@@ -129,14 +129,32 @@ check "GET /documents retorna array" \
 # ─── 6. Agente RAG ───────────────────────────────────────────
 bold "6. Agente RAG (vía NestJS proxy)"
 
-CHAT=$(curl -s -X POST "$NEST/agent/chat" \
+# thread_id debe ser un UUID real con fila en conversation_threads
+# (FK agregada en 002_conversation_threads.sql) — un string literal como
+# "test-e2e" rompe el INSERT en chat_history con un 500, no es válido acá.
+THREAD=$(curl -s -X POST "$NEST/threads" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    -d "{\"question\":\"¿Cuántos empleados hay activos?\",\"user_id\":$USER_ID,\"thread_id\":\"test-e2e\"}")
+    -d "{\"user_id\":$USER_ID,\"name\":\"test-e2e\"}")
+THREAD_ID=$(echo "$THREAD" | jq -r '.id // empty')
+check "POST /threads crea hilo de conversación" '[ -n "$THREAD_ID" ]'
+
+CHAT_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$NEST/agent/chat" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"question\":\"¿Cuántos empleados hay activos?\",\"user_id\":$USER_ID,\"thread_id\":\"$THREAD_ID\"}")
+CHAT_STATUS=$(echo "$CHAT_RESPONSE" | tail -n1)
+CHAT=$(echo "$CHAT_RESPONSE" | sed '$d')
+
 CHAT_DETAIL=$(echo "$CHAT" | jq -r '.detail // empty')
 if [[ "$CHAT_DETAIL" == *"Límite"* ]]; then
     echo "  ⚠ Rate limit de Groq — saltando prueba del agente (reintentar en ~60s)"
 else
+    # Chequeo explícito del código HTTP primero: sin esto, un 500 con body
+    # {"detail": "..."} deja ANSWER vacío por el // empty de jq, pero el
+    # check de más abajo pasaba igual porque nunca miraba el status code.
+    check "POST /agent/chat no retorna error HTTP (status=$CHAT_STATUS)" \
+        '[[ "$CHAT_STATUS" =~ ^2[0-9][0-9]$ ]]'
     ANSWER=$(echo "$CHAT" | jq -r '.answer // empty')
     check "POST /agent/chat retorna answer no vacío" '[ -n "$ANSWER" ]'
 fi
@@ -153,6 +171,11 @@ PG_CONTAINER="${PG_CONTAINER:-kuaai-intelligent-hrms-postgres-1}"
 DELETED=$(docker exec "$PG_CONTAINER" psql -U kuaai_user -d kuaai -tAc \
     "DELETE FROM employees WHERE legajo LIKE 'EMP-E2E%' RETURNING id;" | wc -l)
 green "Empleados de prueba eliminados ($DELETED)"
+
+if [ -n "${THREAD_ID:-}" ]; then
+    curl -s -X DELETE "$NEST/threads/$THREAD_ID" -H "Authorization: Bearer $TOKEN" >/dev/null
+    green "Hilo de conversación de prueba eliminado"
+fi
 
 # ─── Resumen ─────────────────────────────────────────────────
 echo ""
