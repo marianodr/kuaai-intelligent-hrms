@@ -6,7 +6,8 @@
 |---|---|
 | `infra/postgres/seed.sql` | 2 usuarios + 8 empleados + registros de asistencia de mayo 2026 |
 | `scripts/seed-db.sh` | Carga seed.sql en el contenedor postgres vía docker exec |
-| `scripts/test-e2e.sh` | Script E2E con 18 checks sobre los 6 flujos del sistema |
+| `scripts/test-e2e.sh` | Script E2E con 19 checks sobre los 6 flujos del sistema |
+| `scripts/test-agent-tools.py` | Verificación tool-por-tool del agente RAG (6 herramientas): invocación correcta, argumentos y aplicación del resultado en la respuesta final |
 | `apps/backend-fastapi/app/services/agent_service.py` | Prompt del agente optimizado con fecha dinámica |
 | `README.md` | Documentación principal del monorepo |
 
@@ -67,7 +68,7 @@ El agente se inicializa una sola vez al arrancar FastAPI. Si el prompt se inyect
 
 ## Script de prueba E2E
 
-`scripts/test-e2e.sh` cubre 18 checks distribuidos en 6 secciones:
+`scripts/test-e2e.sh` cubre 19 checks distribuidos en 6 secciones:
 
 | Sección | Checks |
 |---|---|
@@ -77,12 +78,40 @@ El agente se inicializa una sola vez al arrancar FastAPI. Si el prompt se inyect
 | 3. Dashboard | today, monthly-average, tardiness |
 | 4. MQTT | Publicación de fichaje RFID simulado |
 | 5. Documentos | GET /documents/ retorna array |
-| 6. Agente RAG | Chat retorna answer, history retorna array |
+| 6. Agente RAG | Crea hilo real (`POST /threads`), chat responde 2xx (no error HTTP), answer no vacío, history retorna array |
 
 **Uso:**
 ```bash
 # Con stack corriendo y seed cargado:
 ./scripts/test-e2e.sh
+```
+
+> `thread_id` en `POST /agent/chat` debe ser un UUID con fila real en `conversation_threads`
+> (FK agregada en `002_conversation_threads.sql`) — por eso el script crea un hilo antes de
+> llamar al agente, en vez de pasar un string arbitrario.
+
+### Verificación tool-por-tool del agente
+
+`test-e2e.sh` solo confirma que `/agent/chat` responde con un `answer` no vacío — no valida
+qué herramienta usó el agente ni si el resultado de esa herramienta se refleja en la respuesta.
+Para eso está `scripts/test-agent-tools.py`, que envía una pregunta representativa por cada una
+de las 6 herramientas (`search_documents`, `get_daily_attendance`, `get_employee_attendance`,
+`get_tardiness_report`, `get_monthly_summary`, `get_employee_info`) y verifica, por herramienta:
+
+1. se invocó la herramienta esperada (y ninguna otra fuera de las permitidas como prerequisito)
+2. los argumentos generados son razonables para la pregunta
+3. la respuesta final del agente refleja el resultado real de la herramienta, no una respuesta genérica
+
+Esto requiere que `POST /agent/chat` exponga qué herramientas invocó en el campo `tool_calls`
+de la respuesta (`apps/backend-fastapi/app/routers/agent.py` +
+`app/services/agent_service.py`), reconstruido a partir de los mensajes intermedios que
+`create_react_agent` ya arma internamente (`AIMessage.tool_calls` + `ToolMessage`), sin cambiar
+la lógica del agente.
+
+**Uso:**
+```bash
+# Con stack corriendo y seed cargado:
+python3 scripts/test-agent-tools.py
 ```
 
 ---
