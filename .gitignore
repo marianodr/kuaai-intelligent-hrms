@@ -39,6 +39,7 @@ Thumbs.db
 # Notas locales
 Ideas.md
 docs/ideas-plan.md
+docs/rag-retrieval-pipeline.md
 scripts/.venv/
 scripts/dataset.json
 scripts/results_*.json
