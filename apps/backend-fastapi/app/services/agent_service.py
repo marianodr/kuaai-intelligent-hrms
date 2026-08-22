@@ -31,6 +31,9 @@ Reglas:
 - Presentá listas con nombre, departamento y datos relevantes.
 - No inventes datos: solo informá lo que obtuviste de las herramientas.
 - Si no encontrás información relevante, decilo claramente.
+- Si una herramienta devuelve un resultado vacío o "no encontrado", informalo
+  directamente al usuario en tu respuesta. No vuelvas a invocar la misma
+  herramienta con los mismos argumentos esperando un resultado distinto.
 """
 
 
