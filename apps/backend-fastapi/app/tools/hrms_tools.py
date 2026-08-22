@@ -1,6 +1,6 @@
 import json
 import logging
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from langchain_core.tools import tool, StructuredTool
 
 from app import database, embeddings as emb_service
@@ -88,11 +88,24 @@ def get_daily_attendance(date: str) -> str:
     return json.dumps(result, ensure_ascii=False, default=str)
 
 
-@tool
-def get_employee_info(query: str) -> str:
-    """Busca información de un empleado por nombre, apellido o legajo.
-    Retorna datos básicos del perfil.
-    Parámetro query: nombre, apellido o número de legajo a buscar."""
+# get_employee_info usa StructuredTool + Pydantic (en vez de @tool) porque
+# el modelo a veces manda el legajo como number en el tool_call (ej: "legajo
+# 1001" -> 1001 en vez de "1001"). Con @tool el schema declara query: string
+# a secas y Groq rechaza la llamada con tool_use_failed antes de que el
+# código llegue a ejecutarse. Declarando el campo como str | int | float se
+# amplía el JSON schema que ve Groq, y el field_validator normaliza a str
+# antes de armar la query SQL (no cambia la lógica de búsqueda, ILIKE sigue
+# igual).
+class _EmployeeQueryArgs(BaseModel):
+    query: str | int | float
+
+    @field_validator("query", mode="before")
+    @classmethod
+    def _coerce_query_to_str(cls, v):
+        return str(v)
+
+
+def _get_employee_info(query: str) -> str:
     with database.get_cursor() as (cur, conn):
         cur.execute(
             """
@@ -116,6 +129,16 @@ def get_employee_info(query: str) -> str:
         return f"No se encontró ningún empleado que coincida con '{query}'."
 
     return json.dumps([dict(r) for r in rows], ensure_ascii=False, default=str)
+
+
+get_employee_info = StructuredTool.from_function(
+    func=_get_employee_info,
+    name="get_employee_info",
+    description="Busca información de un empleado por nombre, apellido o legajo. "
+                "Retorna datos básicos del perfil. Parámetro query: nombre, apellido "
+                "o número de legajo a buscar (texto o número).",
+    args_schema=_EmployeeQueryArgs,
+)
 
 
 # ── Tools con múltiples parámetros — StructuredTool + Pydantic ───────────────
