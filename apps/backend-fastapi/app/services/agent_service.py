@@ -1,5 +1,6 @@
 import logging
 from datetime import date
+from langchain_core.messages import HumanMessage, trim_messages
 from langchain_groq import ChatGroq
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
@@ -11,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 _agent = None
 _checkpointer = MemorySaver()
+
+# Cantidad de turnos (preguntas del usuario) de conversación a conservar en
+# el contexto enviado al LLM. Ajustable: Groq limita a 8000 TPM en el free
+# tier y sin recorte el contexto de un thread activo crece sin límite turno
+# tras turno (ver ADR-006).
+MAX_HISTORY_TURNS = 5
 
 SYSTEM_PROMPT = """Eres Kuaai, el asistente inteligente de Recursos Humanos de la empresa.
 Hoy es {today}. Usa esta fecha cuando el usuario diga "hoy", "este mes" o "el mes actual".
@@ -27,6 +34,28 @@ Reglas:
 """
 
 
+def _count_turns(messages: list) -> int:
+    """token_counter de trim_messages: en vez de contar tokens, cuenta
+    turnos (mensajes del usuario) en la lista acumulada que va evaluando."""
+    return sum(1 for m in messages if isinstance(m, HumanMessage))
+
+
+def _trim_history(state: dict) -> dict:
+    """pre_model_hook: recorta lo que se envía al LLM a system prompt (una
+    sola copia) + los últimos MAX_HISTORY_TURNS turnos. No modifica el
+    estado persistido del checkpointer (se devuelve vía llm_input_messages),
+    así el historial completo sigue disponible en chat_history/get_state."""
+    trimmed = trim_messages(
+        state["messages"],
+        max_tokens=MAX_HISTORY_TURNS,
+        token_counter=_count_turns,
+        strategy="last",
+        start_on="human",
+        include_system=True,
+    )
+    return {"llm_input_messages": trimmed}
+
+
 def init_agent(settings) -> None:
     global _agent
     llm = ChatGroq(
@@ -39,6 +68,7 @@ def init_agent(settings) -> None:
         model=llm,
         tools=ALL_TOOLS,
         checkpointer=_checkpointer,
+        pre_model_hook=_trim_history,
     )
     logger.info(f"Agente inicializado con modelo {settings.groq_model} y {len(ALL_TOOLS)} herramientas")
 
