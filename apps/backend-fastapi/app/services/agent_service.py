@@ -82,7 +82,7 @@ def chat(question: str, user_id: int, thread_id: str) -> dict:
     result = _agent.invoke(
         {
             "messages": [
-                {"role": "system", "content": system},
+                {"role": "system", "content": system, "id": "system-prompt"},
                 {"role": "user", "content": question},
             ]
         },
