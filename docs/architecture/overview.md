@@ -83,8 +83,8 @@ graph TB
     IOT   -->|"publish RFID"| MQTT
 
     style FE   fill:#3b82f6,color:#fff
-    style NEST fill:#16a34a,color:#fff
-    style FAPI fill:#dc2626,color:#fff
+    style NEST fill:#dc2626,color:#fff
+    style FAPI fill:#16a34a,color:#fff
     style PG   fill:#6366f1,color:#fff
     style MINIO fill:#f59e0b,color:#fff
     style MQTT fill:#8b5cf6,color:#fff
