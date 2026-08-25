@@ -67,6 +67,7 @@ async def enviar_mensaje(rfid_code: str):
         payload = ujson.dumps({"rfid_code": rfid_code})
         await client.publish(TOPIC, payload, qos=1)
         log(f"[MQTT] Payload enviado: {payload}")
+        led_error.off()
         buzzer.on()
         await asyncio.sleep_ms(100)
         buzzer.off()

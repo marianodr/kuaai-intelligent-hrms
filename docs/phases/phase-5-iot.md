@@ -87,6 +87,63 @@ El RC522 devuelve el UID como lista de bytes. `int.from_bytes()` lo convierte a 
 
 El `main.py` original tenía `network` referenciado dentro de `wifi_ensure()` sin importarlo al nivel del módulo, lo que causaba `NameError` en runtime. Se agregó `import network` al inicio del archivo.
 
+### led_error (GP13) quedaba pegado en encendido (2026-08-25)
+
+`enviar_mensaje()` prendía `led_error` en el `except` pero nunca lo apagaba en el camino
+exitoso, así que una vez que se disparaba quedaba encendido para siempre (hasta el próximo
+reboot), sin reflejar el estado real del último intento de publicación. Se agregó
+`led_error.off()` al confirmar un publish exitoso.
+
+En la práctica este LED casi no se dispara: ver la sección siguiente sobre cómo `mqtt_as`
+maneja los errores de red.
+
+## mqtt_as.py: cómo maneja realmente los errores de publish (y por qué no hay cola de reintento)
+
+Investigando el bug de arriba se encontró que el `MQTTClient.publish()` de `mqtt_as.py`
+(vendorizado en este repo) **ya reintenta indefinidamente por su cuenta**:
+
+```python
+# mqtt_as.py — clase MQTTClient
+async def publish(self, topic, msg, retain=False, qos=0, properties=None):
+    qos_check(qos)
+    while 1:
+        await self._connection()          # espera a que _keep_connected() reconecte
+        try:
+            return await super().publish(topic, msg, retain, qos, properties)
+        except OSError:
+            pass                           # reintenta para siempre, nunca propaga
+```
+
+Cualquier falla de red (WiFi caída, broker caído, timeout) llega como `OSError` y se
+absorbe acá — nunca sube como excepción a `main.py`. Por eso el `except Exception` de
+`enviar_mensaje()` casi nunca se ejecuta: solo atraparía un bug real de software (ej.
+`MemoryError`), no un corte de conectividad.
+
+**Consecuencia:** no existe una cola de mensajes pendientes. Hay un único `publish()` que
+queda colgado (`await`) reintentando hasta que la conexión vuelve. Como `main()` llama
+`await enviar_mensaje(rfid_code)` **directamente dentro del loop de lectura RFID**, mientras
+ese publish está colgado el firmware **no lee tarjetas nuevas** — no se pierden ni se
+encolan, simplemente el lector queda "sordo" durante el corte. El LED de conexión (GP8/GP9)
+sigue actualizándose bien mientras tanto porque lo maneja `_keep_connected()`, una tarea de
+fondo independiente.
+
+### Decisión (2026-08-25): no resolver esto todavía
+
+Para el estado actual del MVP (WiFi local, cortes esperables breves y poco frecuentes) se
+decidió **no** construir una cola de reintento ni desacoplar el envío de la lectura por
+ahora — dejar solo el fix cosmético del LED. Quedó pendiente para cuando se necesite mayor
+robustez:
+
+1. **Desacoplar envío de lectura** — cambiar `await enviar_mensaje(...)` por
+   `asyncio.create_task(enviar_mensaje(...))` en el loop principal, para que un publish
+   colgado no congele la lectura de nuevas tarjetas. Riesgo: varias tarjetas pasadas durante
+   un corte largo generan varios `publish()` colgados en simultáneo (a vigilar en un
+   dispositivo con RAM limitada).
+2. **Cola de reintento acotada** — mantener en RAM los últimos N `rfid_code` + timestamp
+   pendientes y reintentarlos cuando `conn_han` confirme reconexión, con el LED de error
+   reflejando "hay pendientes en cola". Es la solución más robusta, pero la que más
+   superficie nueva de bugs agrega.
+
 ## Indicadores visuales
 
 | Estado | LED activo |
