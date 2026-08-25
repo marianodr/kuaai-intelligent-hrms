@@ -43,3 +43,19 @@ docs/rag-retrieval-pipeline.md
 scripts/.venv/
 scripts/dataset.json
 scripts/results_*.json
+pymakr.conf
+
+# IoT node (MicroPython / Raspberry Pi Pico)
+apps/iot-node/secrets.py
+apps/iot-node/config.py
+apps/iot-node/credentials/
+apps/iot-node/api_keys/
+apps/iot-node/**/*.key
+apps/iot-node/**/*.pem
+apps/iot-node/**/*.crt
+apps/iot-node/firmware/
+apps/iot-node/**/*.mpy
+apps/iot-node/**/*.bin
+apps/iot-node/**/*.uf2
+apps/iot-node/**/*.hex
+apps/iot-node/.pyboard/
