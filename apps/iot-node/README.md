@@ -44,6 +44,8 @@ iot-node/
 ├── secrets.py           # Credenciales locales (no versionar)
 ├── secrets.example.py   # Plantilla de secrets.py
 ├── micropython-async/   # Librería asyncio para MicroPython
+├── mqtt_as.py           # Cliente MQTT async (vendorizado desde peterhinch/micropython-mqtt)
+├── mfrc522.py           # Driver RC522 (vendorizado desde danjperron/micropython-mfrc522)
 └── scripts/
     ├── leer_tag.py      # Utilidad: imprime UID de cualquier tarjeta
     └── control_acceso.py # Utilidad: acceso local sin MQTT
@@ -51,12 +53,10 @@ iot-node/
 
 ## Librerías externas necesarias
 
-Subir al sistema de archivos del Pico junto con los archivos del proyecto:
-
-| Librería | Origen | Propósito |
-|---|---|---|
-| `mfrc522.py` | [mfrc522-micropython](https://github.com/danjperron/micropython-mfrc522) | Driver RC522 |
-| `mqtt_as.py` | [mqtt_as](https://github.com/peterhinch/micropython-mqtt/tree/master/mqtt_as) | Cliente MQTT async |
+`mqtt_as.py` y `mfrc522.py` ya están versionados en este repo (no hace falta bajarlos
+aparte). `mqtt_as.py` se vendorizó como archivo plano desde el `__init__.py` del
+paquete `mqtt_as` upstream — el proyecto original migró a un paquete con soporte
+MQTTv5/TLS que no usamos, así que alcanza con este archivo suelto.
 
 ## Configuración
 
@@ -85,8 +85,8 @@ pip install mpremote
 mpremote connect /dev/ttyACM0 cp boot.py :boot.py
 mpremote connect /dev/ttyACM0 cp main.py :main.py
 mpremote connect /dev/ttyACM0 cp secrets.py :secrets.py
-mpremote connect /dev/ttyACM0 cp mfrc522.py :mfrc522.py
 mpremote connect /dev/ttyACM0 cp mqtt_as.py :mqtt_as.py
+mpremote connect /dev/ttyACM0 cp mfrc522.py :mfrc522.py
 
 # Reiniciar el Pico
 mpremote connect /dev/ttyACM0 reset
