@@ -103,7 +103,6 @@ class Settings(BaseSettings):
 
     # SentenceTransformers
     embeddings_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
-    embeddings_dimensions: int = 384
 
     class Config:
         env_file = ".env"
@@ -717,7 +716,6 @@ RUN apt-get install -y libpq-dev gcc g++ libgl1 libglib2.0-0
 | `GROQ_API_KEY` | — | **Sí** | API key de Groq |
 | `GROQ_MODEL` | `qwen/qwen3.6-27b` | No | Modelo Groq a usar |
 | `EMBEDDINGS_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | No | Modelo SentenceTransformers |
-| `EMBEDDINGS_DIMENSIONS` | `384` | No | Dimensiones del vector |
 | `FASTAPI_PORT` | `8000` | No | Puerto de escucha |
 
 Los valores default corresponden a la configuración del `docker-compose.yml` del monorepo. En producción se deben sobreescribir con valores reales, especialmente las credenciales.

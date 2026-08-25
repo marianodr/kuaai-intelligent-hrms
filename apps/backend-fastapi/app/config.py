@@ -22,7 +22,6 @@ class Settings(BaseSettings):
 
     # SentenceTransformers
     embeddings_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
-    embeddings_dimensions: int = 384
 
     # FastAPI
     fastapi_port: int = 8000
