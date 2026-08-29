@@ -10,11 +10,40 @@
 ## Índice
 
 1. [Visión general del sistema](#1-visión-general-del-sistema)
+   - [Diagrama — Nivel 1: Contexto del sistema](#diagrama--nivel-1-contexto-del-sistema)
+   - [Diagrama — Nivel 2: Contenedores (servicios)](#diagrama--nivel-2-contenedores-servicios)
 2. [Fase 1 — Infraestructura base](#2-fase-1--infraestructura-base)
+   - [Estructura del monorepo](#estructura-del-monorepo)
+   - [Diagrama de deployment (Docker Compose)](#diagrama-de-deployment-docker-compose)
+   - [Variables de entorno clave (.env)](#variables-de-entorno-clave-env)
 3. [Fase 2 — Backend NestJS](#3-fase-2--backend-nestjs)
+   - [Diagrama de módulos](#diagrama-de-módulos)
+   - [Endpoints expuestos](#endpoints-expuestos)
+   - [Lógica de asistencia (AttendanceService)](#lógica-de-asistencia-attendanceservice)
+   - [Entidades TypeORM](#entidades-typeorm)
 4. [Fase 3 — Backend FastAPI + Agente RAG](#4-fase-3--backend-fastapi--agente-rag)
-5. [Modelo de datos](#5-modelo-de-datos)
-6. [Flujos de operación críticos](#6-flujos-de-operación-críticos)
+   - [Diagrama de módulos](#diagrama-de-módulos-1)
+   - [Pipeline de ingestión de documentos](#pipeline-de-ingestión-de-documentos)
+   - [Flujo del agente RAG](#flujo-del-agente-rag)
+   - [Herramientas del agente (6 tools LangChain)](#herramientas-del-agente-6-tools-langchain)
+   - [Endpoints FastAPI](#endpoints-fastapi)
+   - [Hilos de conversación y logs de sistema (Sprints 2/3)](#hilos-de-conversación-y-logs-de-sistema-sprints-23)
+5. [Fase 4 — Frontend Next.js](#5-fase-4--frontend-nextjs)
+   - [Stack](#stack)
+   - [Estructura de rutas (App Router)](#estructura-de-rutas-app-router)
+   - [Sesión: cookie + localStorage, no uno solo](#sesión-cookie--localstorage-no-uno-solo)
+   - [Páginas principales](#páginas-principales)
+6. [Fase 5 — Nodo IoT (Raspberry Pi Pico 2W)](#6-fase-5--nodo-iot-raspberry-pi-pico-2w)
+   - [Hardware](#hardware)
+   - [Estructura de archivos](#estructura-de-archivos)
+   - [Flujo del firmware](#flujo-del-firmware)
+   - [Por qué `mqtt_as` y no `umqtt.simple`](#por-qué-mqtt_as-y-no-umqttsimple)
+7. [Modelo de datos](#7-modelo-de-datos)
+   - [Diagrama entidad-relación](#diagrama-entidad-relación)
+8. [Flujos de operación críticos](#8-flujos-de-operación-críticos)
+   - [Flujo 1 — Login y autenticación](#flujo-1--login-y-autenticación)
+   - [Flujo 2 — Registro RFID IoT](#flujo-2--registro-rfid-iot)
+9. [Referencias](#9-referencias)
 
 ---
 
@@ -195,6 +224,12 @@ graph TB
 | `JWT_SECRET` | — | Secret para firmar JWT (requerido) |
 | `EMBEDDINGS_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | Modelo de embeddings (384 dims) |
 | `LATE_TOLERANCE_MINUTES` | `5` | Minutos de tolerancia tras las 08:00 antes de marcar `is_late: true` |
+| `FAKE_TODAY_ENABLED` | `false` | Si es `true`, `DashboardService` usa `FAKE_TODAY` como fecha "hoy" en vez de la real (QA/demos fuera de horario laboral) |
+| `FAKE_TODAY` | `2026-08-14` | Fecha simulada que consumen `getTodayAttendance`, `getMonthlyAverage` y `getMonthlyAbsences` cuando `FAKE_TODAY_ENABLED=true` |
+
+Esta tabla no es exhaustiva — `.env.example` define ~20 variables en total (credenciales de Postgres/MinIO, host/puerto de MQTT, `JWT_EXPIRATION`, `NEST_PORT`, `FASTAPI_URL`, `ADMIN_EMAIL`/`ADMIN_PASSWORD`, `DOCLING_OCR_ENABLED`, `LOG_LEVEL`/`LOG_FILE`, `NEXT_PUBLIC_API_URL`). Se listan acá solo las que afectan un comportamiento documentado en este archivo.
+
+> **Nota:** `.env.example` también define `GEMINI_API_KEY`, pero ningún código del repo lo lee (`grep` sobre `apps/` no encuentra ninguna referencia) — es una variable sin uso actual, no una integración real con Gemini. No se incluye en la tabla por ese motivo.
 
 ---
 
@@ -362,6 +397,8 @@ classDiagram
 ---
 
 ## 4. Fase 3 — Backend FastAPI + Agente RAG
+
+> **Límite de confianza:** FastAPI **no implementa autenticación propia** — no valida JWT ni ningún otro mecanismo en sus endpoints. Confía por completo en que solo NestJS le habla (ver `ProxyModule`, sección 3), que ya aplicó `JwtAuthGuard` antes de reenviar la request. Esto significa que el puerto `:8000` **no debe exponerse** fuera de la red interna de Docker en ningún despliegue — si se expone, cualquiera puede pegarle directo a `/agent/chat` o `/documents/*` sin login.
 
 ### Diagrama de módulos
 
@@ -546,6 +583,8 @@ sequenceDiagram
 
 ### Hilos de conversación y logs de sistema (Sprints 2/3)
 
+> **"Sprint" vs. "Fase":** las Fases 1-5 de este documento son las etapas de construcción inicial del MVP (cada una con su doc en `docs/phases/`). Los "Sprints" son trabajo posterior, ya sobre el sistema funcionando, priorizado desde `docs/ideas-plan.md` — no reemplazan ni continúan la numeración de fases, son una unidad de planificación distinta aplicada después de que las 5 fases ya estaban integradas a `master`.
+
 Agregado después de la fase 3 inicial (commits `68a2952`, `23a1ba1`,
 `89168d1`, `15617ba` — 2026-06-16), no cubierto por los docs de fase
 originales:
@@ -589,7 +628,117 @@ auditoría persistente real.
 
 ---
 
-## 5. Modelo de datos
+## 5. Fase 4 — Frontend Next.js
+
+### Stack
+
+| Tecnología | Versión | Rol |
+|---|---|---|
+| Next.js | 16.2.6 | Framework React con App Router |
+| React | 19.2.4 | UI library |
+| TypeScript | 5.x | Tipado estático |
+| Tailwind CSS | 4.x | Utility-first CSS |
+| shadcn/ui + @base-ui/react | — | Componentes accesibles (`@base-ui/react` en vez de Radix: sin `asChild`, se compone con `render={<Button />}`) |
+| recharts | 3.10.x | Donut chart de asistencia del día en el dashboard |
+| react-markdown + remark-gfm | 10.1.x / 4.0.x | Renderizado de Markdown (GFM) en las respuestas del chat |
+
+### Estructura de rutas (App Router)
+
+```
+apps/frontend/
+├── proxy.ts                        # Protección de rutas (reemplaza middleware.ts en Next.js 16)
+├── app/
+│   ├── login/page.tsx               # Formulario de login
+│   └── (dashboard)/
+│       ├── dashboard/page.tsx       # KPIs y tablas de asistencia
+│       ├── employees/page.tsx       # CRUD empleados con paginación
+│       ├── documents/page.tsx       # Upload y gestión de PDFs
+│       └── chat/page.tsx            # Interfaz de chat con agente RAG
+├── components/                      # layout/ (sidebar, header) + ui/ (shadcn/ui)
+└── lib/
+    ├── api.ts                       # Cliente API tipado — todas las rutas vía NestJS
+    └── auth.ts                      # Sesión: cookie + localStorage
+```
+
+### Sesión: cookie + localStorage, no uno solo
+
+```mermaid
+flowchart LR
+    LOGIN["/login"] -->|"authApi.login()"| SAVE["saveSession(token, user)"]
+    SAVE --> COOKIE["cookie kuaai_token\n(no-httpOnly, max-age 24h)"]
+    SAVE --> LS["localStorage kuaai_user"]
+    COOKIE -->|"lee en el Edge"| PROXY["proxy.ts\n(protege rutas)"]
+    LS -->|"lee en cliente"| HEADER["Header\n(muestra email/rol)"]
+```
+
+- **Cookie `kuaai_token`** (no-httpOnly): la lee `proxy.ts` en el Edge para redirigir si falta el token, y `lib/auth.ts` en cliente para adjuntar el `Authorization: Bearer`.
+- **localStorage `kuaai_user`**: guarda `{ id, email, role }` para que los componentes muestren usuario/rol sin pegarle a `/auth/me` en cada render.
+
+Next.js 16 renombró `middleware.ts` a `proxy.ts` (misma semántica: corre en el Edge antes del render). **No confundir** este `proxy.ts` del frontend con el `ProxyModule` de NestJS (sección 3) — son dos capas de proxy distintas y sin relación entre sí: una protege rutas del lado del cliente, la otra hace de API gateway del lado del servidor.
+
+### Páginas principales
+
+| Ruta | Contenido |
+|---|---|
+| `/login` | Formulario de autenticación |
+| `/dashboard` | KPIs (asistencia del día, promedio mensual, tardanzas recurrentes) + tablas en tiempo real (polling 20s) |
+| `/employees` | CRUD paginado con búsqueda y filtro por departamento |
+| `/documents` | Upload de PDFs, stepper de progreso del pipeline RAG, polling cada 3s mientras hay documentos `PROCESSING` |
+| `/chat` | Chat con el agente RAG, historial por thread, indicador de "Pensando..." |
+
+Todas las páginas llaman **exclusivamente** a NestJS (`lib/api.ts`) — nunca a FastAPI directamente, consistente con el patrón de proxy de la sección 1. `lib/api.ts` además parsea tanto `body.message` (formato de error de NestJS) como `body.detail` (formato de error de FastAPI) para mostrar mensajes descriptivos en vez de "Error 500" genérico.
+
+Detalle completo (todas las páginas, componentes y decisiones de UI): `docs/phases/phase-4-frontend.md`.
+
+---
+
+## 6. Fase 5 — Nodo IoT (Raspberry Pi Pico 2W)
+
+### Hardware
+
+| Componente | Modelo |
+|---|---|
+| Microcontrolador | Raspberry Pi Pico 2W |
+| Lector RFID | RC522 (interfaz SPI) |
+| Feedback visual | 4 LEDs — GP8 (conexión OK), GP9 (sin conexión), GP12 (lectura OK), GP13 (error de publish) |
+| Feedback sonoro | Buzzer pasivo (GP15) |
+
+### Estructura de archivos
+
+```
+apps/iot-node/
+├── boot.py              # Habilita GC; corre antes de main.py
+├── main.py              # Firmware principal (asyncio)
+├── mfrc522.py           # Driver SPI del lector RC522 (vendorizado)
+├── mqtt_as.py           # Cliente MQTT asíncrono con reconexión automática (vendorizado)
+├── secrets.py           # Credenciales WiFi/MQTT (no versionado)
+└── secrets.example.py   # Plantilla para versionar
+```
+
+### Flujo del firmware
+
+```mermaid
+flowchart TD
+    BOOT["boot.py: gc.enable()"] --> INIT["main.py: init LEDs\n+ parpadeo 5x (señal de inicio)"]
+    INIT --> WIFI["wifi_ensure()\nconecta WiFi"]
+    WIFI --> MQTTCONN["MQTTClient.connect()\nreintenta cada 3s hasta éxito"]
+    MQTTCONN --> LOOP["Loop asyncio (cada 100ms):\nrdr.request + SelectTagSN()"]
+    LOOP -->|"UID nuevo o >5s desde el último"| PUBLISH["publish(topic, {rfid_code}, qos=1)\n+ buzzer 100ms + LED amarillo"]
+    LOOP -->|"mismo UID, <5s (anti-rebote)"| LOOP
+    PUBLISH --> LOOP
+```
+
+`rfid_code` se envía siempre como **string**, no como entero: el UID que devuelve el RC522 es una lista de bytes que el firmware convierte con `int.from_bytes()` y luego `str()`, porque `employees.rfid_code` en PostgreSQL es `VARCHAR(100)`.
+
+### Por qué `mqtt_as` y no `umqtt.simple`
+
+`umqtt.simple` (el cliente MQTT que trae MicroPython por defecto) no reconecta solo. `mqtt_as` es asíncrono (`uasyncio`), reconecta automáticamente ante cortes de WiFi o del broker, y soporta QoS 1 — necesario para no perder fichajes.
+
+> **Limitación conocida (no resuelta a propósito):** `MQTTClient.publish()` de `mqtt_as` reintenta un `OSError` de red **indefinidamente y en silencio** — nunca propaga la excepción a `main.py`. Como el firmware hace `await enviar_mensaje(...)` dentro del mismo loop que lee tarjetas, mientras un publish queda colgado reintentando, **el lector no lee tarjetas nuevas** (no se pierden ni se encolan: el hardware queda "sordo" durante el corte). No existe cola de reintento. Para el estado actual del MVP (WiFi local, cortes breves y poco frecuentes) se decidió no construirla todavía — ver `docs/phases/phase-5-iot.md` para el detalle completo y las dos alternativas evaluadas para cuando haga falta más robustez.
+
+---
+
+## 7. Modelo de datos
 
 ### Diagrama entidad-relación
 
@@ -689,7 +838,7 @@ erDiagram
 
 ---
 
-## 6. Flujos de operación críticos
+## 8. Flujos de operación críticos
 
 ### Flujo 1 — Login y autenticación
 
@@ -715,6 +864,8 @@ sequenceDiagram
 
 ### Flujo 2 — Registro RFID IoT
 
+Este diagrama muestra el camino de punta a punta entre los 4 componentes (hardware → broker → NestJS → DB). El detalle completo de la clasificación ENTRADA/SALIDA/INTERMEDIO, el cálculo de tardanza y los criterios de descarte (fin de semana, empleado inexistente/inactivo) está documentado **una sola vez**, en "[Lógica de asistencia (AttendanceService)](#lógica-de-asistencia-attendanceservice)" — sección 3 — para evitar que ambos diagramas queden desincronizados entre sí.
+
 ```mermaid
 sequenceDiagram
     participant HW as Pico 2W + RC522
@@ -724,19 +875,27 @@ sequenceDiagram
 
     HW->>MQ: PUBLISH attendance/checkin\n{"rfid_code": "ABC123"}
     MQ->>N: MESSAGE attendance/checkin
-    N->>DB: SELECT * FROM employees\nWHERE rfid_code='ABC123' AND status='ACTIVO'
-    alt Empleado encontrado
-        alt Es sábado o domingo
-            Note over N: Descarta evento (no genera registro), log WARN
-        else Día hábil
-            N->>DB: SELECT COUNT(*) FROM attendance_records\nWHERE employee_id=X AND DATE(timestamp)=TODAY\nAND auto_generated=false
-            Note over N: 0 registros → ENTRADA (verifica tardanza:\n> 08:00 + LATE_TOLERANCE_MINUTES,\ndefault 5 → 08:05)<br/>1 registro → SALIDA<br/>2+ registros → INTERMEDIO
-            N->>DB: INSERT attendance_records\n(employee_id, timestamp, record_type, is_late)
-        end
-    else No encontrado / Inactivo
-        Note over N: Descarta evento, log WARN
-    end
+    N->>N: AttendanceService.processRfidEvent()\n(clasificación + tardanza — ver sección 3)
+    N->>DB: SELECT/INSERT según corresponda\n(o descarta sin escribir nada)
 ```
+
+---
+
+## 9. Referencias
+
+Este documento resume la arquitectura; el detalle de implementación y las decisiones puntuales viven en documentos aparte:
+
+**Fases de construcción** (`docs/phases/`):
+- `phase-1-infrastructure.md`, `phase-2-backend-nest.md`, `phase-3-backend-fastapi.md`, `phase-4-frontend.md`, `phase-5-iot.md` — detalle completo de cada fase resumida en las secciones 2-6 de este documento.
+- `phase-6-integration.md` — seed de datos de prueba y scripts E2E, fuera del alcance de este documento (no es arquitectura).
+- `phase-7-deploy-digitalocean-split.md` — reorganización del historial git; no describe un despliegue distinto al de `docker-compose.yml` (la guía de deploy en Digital Ocean vive aparte, en la rama `feature/deploy-digitalocean`, no mergeada a `master`).
+
+**Decisiones de arquitectura** (`docs/decisions/`):
+- `ADR-001-pgvector-vs-qdrant.md` — por qué pgvector como vector store en vez de un servicio separado.
+- `ADR-002-nestjs-fastapi-split.md` — por qué dos backends (Node/Python) en vez de uno solo.
+- `ADR-003-groq-vs-openai.md` y `ADR-004-groq-model-migration-qwen.md` — elección de proveedor LLM y migración de modelo (histórico: documentan Llama 3.1 8B como decisión original, superada por `qwen/qwen3.6-27b`).
+- `ADR-005-chunk-size-embeddings-defaults.md` — por qué `chunk_size=500`/`overlap=50` en la ingesta (sección 4).
+- `ADR-006-system-prompt-fixed-id.md` — decisión relacionada al system prompt del agente.
 
 ---
 
