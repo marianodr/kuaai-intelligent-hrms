@@ -113,10 +113,9 @@ graph TB
     FE    -->|"REST — todas las rutas"| NEST
     NEST  -->|"proxy docs + agente"| FAPI
     NEST  -->|"Leer/Escribir"| PG
-    NEST  -->|"Subir PDFs"| MINIO
     NEST  -->|"subscribe"| MQTT
     FAPI  -->|"vectores"| PG
-    FAPI  -->|"descargar PDFs"| MINIO
+    FAPI  -->|"subir/descargar PDFs"| MINIO
     FAPI  -->|"inferencia LLM"| GROQ
     IOT   -->|"publish RFID"| MQTT
 
@@ -196,10 +195,9 @@ graph TB
     FE -->|"REST (todas las rutas)"| NEST
     NEST -->|"proxy REST"| FAPI
     NEST -->|"psycopg2"| PG
-    NEST -->|"HTTP"| MINIO
     NEST -->|"MQTT subscribe"| MQTT
     FAPI -->|"psycopg2"| PG
-    FAPI -->|"HTTP"| MINIO
+    FAPI -->|"HTTP (subir/descargar PDFs)"| MINIO
     IOT -->|"MQTT publish"| MQTT
     MINIO_INIT -->|"mc create bucket"| MINIO
 
