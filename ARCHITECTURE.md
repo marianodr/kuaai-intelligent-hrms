@@ -50,8 +50,8 @@ graph TB
     KUAAI -->|"Genera respuestas en LN"| GROQ
 
     style KUAAI fill:#1e40af,color:#fff
-    style GROQ  fill:#374151,color:#fff
-    style IOT_CTX fill:#374151,color:#fff
+    style GROQ  fill:#F43E01,color:#fff
+    style IOT_CTX fill:#22C55E,color:#fff
 ```
 
 ### Diagrama — Nivel 2: Contenedores (servicios)
@@ -91,15 +91,15 @@ graph TB
     FAPI  -->|"inferencia LLM"| GROQ
     IOT   -->|"publish RFID"| MQTT
 
-    style FE   fill:#3b82f6,color:#fff
-    style NEST fill:#16a34a,color:#fff
-    style FAPI fill:#dc2626,color:#fff
-    style PG   fill:#6366f1,color:#fff
-    style MINIO fill:#f59e0b,color:#fff
-    style MQTT fill:#8b5cf6,color:#fff
+    style FE   fill:#000000,color:#fff
+    style NEST fill:#e11d48,color:#fff
+    style FAPI fill:#009486,color:#fff
+    style PG   fill:#2563EB,color:#fff
+    style MINIO fill:#DC2626,color:#fff
+    style MQTT fill:#8B5CF6,color:#fff
     style USER fill:#0f172a,color:#fff
-    style IOT  fill:#0f172a,color:#fff
-    style GROQ fill:#374151,color:#fff
+    style IOT  fill:#22C55E,color:#fff
+    style GROQ fill:#F43E01,color:#fff
 ```
 
 ---
@@ -174,12 +174,12 @@ graph TB
     IOT -->|"MQTT publish"| MQTT
     MINIO_INIT -->|"mc create bucket"| MINIO
 
-    style FE fill:#3b82f6,color:#fff
-    style NEST fill:#16a34a,color:#fff
-    style FAPI fill:#dc2626,color:#fff
-    style PG fill:#6366f1,color:#fff
-    style MINIO fill:#f59e0b,color:#fff
-    style MQTT fill:#8b5cf6,color:#fff
+    style FE fill:#000000,color:#fff
+    style NEST fill:#e11d48,color:#fff
+    style FAPI fill:#009486,color:#fff
+    style PG fill:#2563EB,color:#fff
+    style MINIO fill:#DC2626,color:#fff
+    style MQTT fill:#8B5CF6,color:#fff
 ```
 
 ### Variables de entorno clave (.env)
@@ -406,7 +406,7 @@ graph TB
     TOOLS --> DB
     TOOLS --> EMB
 
-    style MAIN fill:#dc2626,color:#fff
+    style MAIN fill:#009486,color:#fff
     style S_AGT fill:#7c3aed,color:#fff
     style TOOLS fill:#b45309,color:#fff
     style R_THREADS fill:#0891b2,color:#fff
