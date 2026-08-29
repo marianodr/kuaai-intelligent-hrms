@@ -24,7 +24,7 @@ Kuaai combina tres patrones arquitectónicos:
 
 - **Event-Driven:** el nodo IoT publica eventos MQTT que NestJS consume asincrónicamente.
 - **Cliente-Servidor (3 capas con proxy):** Next.js habla **únicamente** con NestJS. NestJS actúa como API gateway: maneja auth, CRUD y dashboard directamente, y hace de proxy hacia FastAPI para documentos y chat.
-- **Agéntico (Agentic RAG):** el agente LangChain orquesta herramientas en tiempo de ejecución para responder consultas en lenguaje natural.
+- **Agéntico (Agentic RAG):** el agente LangGraph (`create_react_agent`) orquesta herramientas de LangChain en tiempo de ejecución para responder consultas en lenguaje natural.
 
 ### Diagrama — Nivel 1: Contexto del sistema
 
@@ -191,8 +191,10 @@ graph TB
 | `MINIO_BUCKET_DOCUMENTS` | `documents` | Bucket para PDFs |
 | `MQTT_TOPIC_ATTENDANCE` | `attendance/checkin` | Topic MQTT del nodo IoT |
 | `GROQ_API_KEY` | — | API key de Groq (requerida) |
+| `GROQ_MODEL` | `qwen/qwen3.6-27b` | Modelo LLM usado por el agente vía Groq API (ver ADR-004) |
 | `JWT_SECRET` | — | Secret para firmar JWT (requerido) |
 | `EMBEDDINGS_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | Modelo de embeddings (384 dims) |
+| `LATE_TOLERANCE_MINUTES` | `5` | Minutos de tolerancia tras las 08:00 antes de marcar `is_late: true` |
 
 ---
 
@@ -285,16 +287,19 @@ endpoints FastAPI más abajo.
 flowchart TD
     RFID["📟 Evento MQTT\n{ rfid_code: 'ABC123' }"]
     CHECK_EMP{{"¿Empleado existe\ny está ACTIVO?"}}
-    DISCARD["🚫 Descarta evento"]
-    COUNT{{"¿Registros de\nentrada hoy?"}}
-    ENTRADA["✅ Tipo: ENTRADA\n¿hora > 08:05? → is_late: true"]
+    DISCARD["🚫 Descarta evento\n(no genera registro)"]
+    CHECK_WEEKEND{{"¿Es sábado\no domingo?"}}
+    COUNT{{"¿Registros manuales hoy?\n(auto_generated: false)"}}
+    ENTRADA["✅ Tipo: ENTRADA\n¿hora > 08:00 + tolerancia?\n→ is_late: true"]
     SALIDA["✅ Tipo: SALIDA"]
     INTER["✅ Tipo: INTERMEDIO"]
     SAVE["💾 Persiste en\nattendance_records"]
 
     RFID --> CHECK_EMP
     CHECK_EMP -->|"NO"| DISCARD
-    CHECK_EMP -->|"SÍ"| COUNT
+    CHECK_EMP -->|"SÍ"| CHECK_WEEKEND
+    CHECK_WEEKEND -->|"SÍ"| DISCARD
+    CHECK_WEEKEND -->|"NO"| COUNT
     COUNT -->|"0 registros"| ENTRADA
     COUNT -->|"1 registro"| SALIDA
     COUNT -->|"2+ registros"| INTER
@@ -307,6 +312,12 @@ flowchart TD
     style INTER fill:#f59e0b,color:#fff
     style DISCARD fill:#dc2626,color:#fff
 ```
+
+**Tardanza:** el corte es `WORKDAY_START_HOUR:WORKDAY_START_MINUTE` (08:00, hardcodeado en el código) + `LATE_TOLERANCE_MINUTES` (variable de entorno, `.env.example` la fija en `5`) → **08:05** con la configuración actual del repo, pero cambia si se modifica esa variable. La comparación es estrictamente `>` (mayor, no mayor-o-igual).
+
+**Conteo de registros del día:** el conteo que decide ENTRADA/SALIDA/INTERMEDIO excluye los registros con `auto_generated: true` — si el cron de las 16:00 ya generó una salida automática, no cuenta para clasificar un fichaje manual posterior del mismo día.
+
+**Fin de semana:** cualquier evento RFID recibido un sábado o domingo se descarta sin generar ningún registro, aunque el empleado exista y esté activo (mismo resultado visual que "empleado no encontrado", pero por un motivo distinto).
 
 **Cron job — Salida automática (16:00, lun-vie):**  
 Para cada empleado activo con ENTRADA registrada pero sin SALIDA, se genera automáticamente un registro con `auto_generated: true`.
@@ -377,11 +388,11 @@ graph TB
 
             subgraph "services/"
                 S_ING["ingestion.py\nPipeline PDF → pgvector"]
-                S_AGT["agent_service.py\ncreate_react_agent\n+ ChatGroq + MemorySaver"]
+                S_AGT["agent_service.py\nLangGraph: create_react_agent + MemorySaver\nLangChain: ChatGroq"]
             end
 
             subgraph "tools/"
-                TOOLS["hrms_tools.py\n6 @tool LangChain"]
+                TOOLS["hrms_tools.py\n6 tools LangChain\n(@tool / StructuredTool)"]
             end
         end
     end
@@ -459,7 +470,7 @@ sequenceDiagram
     participant FE as Next.js
     participant N as NestJS (proxy)
     participant FA as FastAPI /agent/chat
-    participant AG as Agente LangChain\n(create_react_agent)
+    participant AG as Agente LangGraph\n(create_react_agent)
     participant LLM as Groq\n(qwen/qwen3.6-27b)
     participant T as Tools (6)
     participant PG as PostgreSQL+pgvector
@@ -501,7 +512,7 @@ sequenceDiagram
     FE-->>U: Muestra respuesta del agente
 ```
 
-### Herramientas del agente (6 @tool)
+### Herramientas del agente (6 tools LangChain)
 
 | Herramienta | Descripción | Fuente de datos |
 |---|---|---|
@@ -715,9 +726,13 @@ sequenceDiagram
     MQ->>N: MESSAGE attendance/checkin
     N->>DB: SELECT * FROM employees\nWHERE rfid_code='ABC123' AND status='ACTIVO'
     alt Empleado encontrado
-        N->>DB: SELECT COUNT(*) FROM attendance_records\nWHERE employee_id=X AND DATE(timestamp)=TODAY
-        Note over N: 0 registros → ENTRADA (verifica tardanza > 08:05)<br/>1 registro → SALIDA<br/>2+ registros → INTERMEDIO
-        N->>DB: INSERT attendance_records\n(employee_id, timestamp, record_type, is_late)
+        alt Es sábado o domingo
+            Note over N: Descarta evento (no genera registro), log WARN
+        else Día hábil
+            N->>DB: SELECT COUNT(*) FROM attendance_records\nWHERE employee_id=X AND DATE(timestamp)=TODAY\nAND auto_generated=false
+            Note over N: 0 registros → ENTRADA (verifica tardanza:\n> 08:00 + LATE_TOLERANCE_MINUTES,\ndefault 5 → 08:05)<br/>1 registro → SALIDA<br/>2+ registros → INTERMEDIO
+            N->>DB: INSERT attendance_records\n(employee_id, timestamp, record_type, is_late)
+        end
     else No encontrado / Inactivo
         Note over N: Descarta evento, log WARN
     end
