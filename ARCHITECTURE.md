@@ -43,7 +43,16 @@
 8. [Flujos de operación críticos](#8-flujos-de-operación-críticos)
    - [Flujo 1 — Login y autenticación](#flujo-1--login-y-autenticación)
    - [Flujo 2 — Registro RFID IoT](#flujo-2--registro-rfid-iot)
-9. [Referencias](#9-referencias)
+9. [Seguridad](#9-seguridad)
+   - [Autenticación (JWT)](#autenticación-jwt)
+   - [Autorización (guards y roles)](#autorización-guards-y-roles)
+   - [Contraseñas](#contraseñas)
+   - [Límite de confianza NestJS / FastAPI](#límite-de-confianza-nestjs--fastapi)
+   - [Cabeceras de seguridad HTTP](#cabeceras-de-seguridad-http)
+   - [Carga y validación de variables de entorno](#carga-y-validación-de-variables-de-entorno)
+   - [Otros mecanismos](#otros-mecanismos)
+   - [Gaps conocidos (pendientes)](#gaps-conocidos-pendientes)
+10. [Referencias](#10-referencias)
 
 ---
 
@@ -879,7 +888,163 @@ sequenceDiagram
 
 ---
 
-## 9. Referencias
+## 9. Seguridad
+
+Resumen de los mecanismos de autenticación, autorización, manejo de credenciales
+y endurecimiento de transporte del sistema. Estado **MVP**: varios controles
+están implementados, otros se difirieron a propósito y están listados en
+[Gaps conocidos](#gaps-conocidos-pendientes). Cada dato apunta al archivo donde
+vive la implementación real.
+
+### Capas que atraviesa una request
+
+```mermaid
+flowchart TD
+    REQ["Request del browser\n(sólo llega a NestJS)"] --> HELMET["helmet\ncabeceras de seguridad"]
+    HELMET --> CORSL["CORS — app.enableCors()"]
+    CORSL --> VP["ValidationPipe\nwhitelist + forbidNonWhitelisted"]
+    VP --> JWTG["JwtAuthGuard\nfirma HS256 + expiración"]
+    JWTG --> ROLES["RolesGuard\n(sólo en /users/*)"]
+    ROLES --> CTRL["Controller → Service"]
+    CTRL -->|"/documents · /agent · /threads"| PROXY["ProxyModule\n(gateway, JWT sin rol)"]
+    PROXY --> FAPI["FastAPI — red interna de Docker\nsin auth propia\nSecurityHeadersMiddleware"]
+
+    style JWTG fill:#16a34a,color:#fff
+    style ROLES fill:#f59e0b,color:#fff
+    style PROXY fill:#dc2626,color:#fff
+    style FAPI fill:#009486,color:#fff
+```
+
+### Autenticación (JWT)
+
+| Aspecto | Implementación |
+|---|---|
+| Librerías | `@nestjs/jwt` (wrapper de `jsonwebtoken`) + `@nestjs/passport` + `passport-jwt` |
+| Algoritmo | **HS256** — default de `jsonwebtoken`; no se setea `algorithm` explícito |
+| Firma / verificación | `JwtModule.registerAsync` en `auth.module.ts` — `secret: config.get('JWT_SECRET')` |
+| Expiración | `JWT_EXPIRATION` (`.env`), default `'24h'` si no está seteada |
+| Payload | `{ sub: user.id, email, role }` (`auth.service.ts`) |
+| Fuente del token en requests | `jwt.strategy.ts` acepta **dos**: header `Authorization: Bearer <t>` y query param `?token=<t>` |
+| Chequeo de expiración | `ignoreExpiration: false` |
+| Protección de rutas | `JwtAuthGuard extends AuthGuard('jwt')` declarado por controller; expone `req.user = { id, email, role }` desde `JwtStrategy.validate()` |
+
+**`JWT_SECRET`:** requerido y **sin fallback en código** — si falta, la app arranca
+igual (no hay validación al bootstrap, ver
+[Carga de variables de entorno](#carga-y-validación-de-variables-de-entorno)) y
+los tokens se firman con `undefined`. `.env.example` trae el placeholder genérico
+`your_jwt_secret_here`; en cualquier despliegue debe reemplazarse en `.env` por un
+valor aleatorio largo (≥ 32 bytes, base64/hex). El `.env` de desarrollo local usa
+un secreto aleatorio de 48 bytes distinto del placeholder público.
+
+### Autorización (guards y roles)
+
+- **`RolesGuard` + `@Roles(...)`** (`SetMetadata('roles', ...)`) — chequea
+  `required.includes(user.role)`.
+- **Único controller con control de rol:** `UsersController` (`@Roles('admin')`),
+  cubre todo `/users/*`. Empleados, dashboard, documentos, agente y threads sólo
+  exigen JWT válido — **no distinguen `admin` de `rrhh`**.
+- `ProxyModule` (`/documents/*`, `/agent/*`, `/threads/*`) reenvía a FastAPI
+  detrás de `JwtAuthGuard`, sin chequeo de rol.
+- Roles definidos: `admin` | `rrhh` (constraint `CHECK` en `users.role`).
+
+### Contraseñas
+
+| Aspecto | Implementación |
+|---|---|
+| Algoritmo | `bcrypt` (npm `bcrypt`, binding nativo — no `bcryptjs`) |
+| Cost factor | `10`, hardcodeado (`bcrypt.hash(password, 10)`) |
+| Dónde se hashea | `users.service.ts` — al crear usuario (`createUser`) y al cambiar contraseña (`updateUser`). Son los **dos únicos** puntos. |
+| Verificación en login | `bcrypt.compare(plain, user.password)` en `auth.service.ts` |
+| Admin inicial | `AdminSeeder` (`OnApplicationBootstrap`) crea el admin desde `ADMIN_EMAIL` / `ADMIN_PASSWORD` si no existe; si esas vars faltan, loguea warning y no crea nada (no rompe el arranque) |
+
+No hay política de complejidad ni de rotación de contraseñas — fuera de alcance del MVP.
+
+### Límite de confianza NestJS / FastAPI
+
+FastAPI **no implementa autenticación propia**: ningún endpoint valida JWT ni
+ningún otro mecanismo. El modelo de seguridad depende de que **sólo NestJS**
+pueda alcanzarlo:
+
+- `docker-compose.yml` **no publica** el puerto `8000` al host (mapeo `8000:8000`
+  removido — commit `e336002`). FastAPI sólo es accesible dentro de la red interna
+  de Docker, por nombre de servicio: `http://backend-fastapi:8000` (var `FASTAPI_URL`).
+- NestJS le habla exclusivamente vía `ProxyModule`, después de aplicar `JwtAuthGuard`.
+- `scripts/test-e2e.sh` verifica esta conectividad haciendo el health check de
+  FastAPI **desde dentro del contenedor de NestJS**, no desde el host.
+
+Un despliegue **nunca** debe volver a exponer `8000`. Si se hace, cualquiera en
+esa red puede pegarle directo a `/agent/chat` o `/documents/*` sin login.
+
+### Cabeceras de seguridad HTTP
+
+**NestJS** — `app.use(helmet())` como primer middleware en `main.ts`. Emite los
+defaults de helmet 8.x, verificados con `curl -I`:
+
+`Content-Security-Policy` (`default-src 'self'` …), `Cross-Origin-Opener-Policy: same-origin`,
+`Cross-Origin-Resource-Policy: same-origin`, `Origin-Agent-Cluster: ?1`,
+`Referrer-Policy: no-referrer`, `Strict-Transport-Security: max-age=31536000; includeSubDomains`,
+`X-Content-Type-Options: nosniff`, `X-DNS-Prefetch-Control: off`, `X-Download-Options: noopen`,
+`X-Frame-Options: SAMEORIGIN`, `X-Permitted-Cross-Domain-Policies: none`, `X-XSS-Protection: 0`.
+
+> `Strict-Transport-Security` lo emite helmet por default aunque dev sea HTTP; el
+> navegador lo ignora sobre HTTP, así que es inofensivo hasta que haya TLS.
+
+**FastAPI** — middleware propio `SecurityHeadersMiddleware`
+(`app/middleware/security_headers.py`, mismo patrón `BaseHTTPMiddleware` que
+`AuditLogMiddleware`, sin dependencias nuevas). Agrega a toda respuesta con
+`setdefault` (no pisa cabeceras ya presentes):
+
+| Cabecera | Valor |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+
+Sin HSTS: el entorno de desarrollo corre sobre HTTP. Agregarla cuando haya
+terminación TLS por delante.
+
+### Carga y validación de variables de entorno
+
+| Backend | Mecanismo | Validación al arrancar |
+|---|---|---|
+| NestJS | `@nestjs/config` — `ConfigModule.forRoot({ isGlobal: true })`, **sin** `validationSchema` (Joi) | **Ninguna.** Si falta una var (ej. `JWT_SECRET`), la app arranca y falla más tarde en runtime, o firma tokens con `undefined`. |
+| FastAPI | `pydantic-settings` `BaseSettings`, `env_file=".env"`, `settings = Settings()` al importar el módulo | **Parcial.** `groq_api_key: str` no tiene default → `ValidationError` al importar si falta. El resto de las settings (credenciales de Postgres/MinIO, etc.) tienen defaults de desarrollo, así que su ausencia **no** se detecta. |
+
+`.env` está en `.gitignore` (nunca se commitea). `.env.example` es la plantilla
+versionada, con placeholders genéricos (`your_jwt_secret_here`, credenciales
+`kuaai_*`) — quien clona el repo lo copia a `.env` y completa los valores reales.
+
+### Otros mecanismos
+
+| Mecanismo | Estado |
+|---|---|
+| Validación de input | NestJS: `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })` global + DTOs `class-validator`. FastAPI: modelos Pydantic en cada router. |
+| Inyección SQL | Consultas parametrizadas en todos lados — TypeORM (params nombrados / query builder) en NestJS, psycopg2 con placeholders `%s` en FastAPI. No hay interpolación de strings dentro de SQL. |
+| CORS | **Permisivo (MVP).** NestJS: `app.enableCors()` sin argumentos. FastAPI: `CORSMiddleware` con `allow_origins=["*"]`, `allow_methods=["*"]`, `allow_headers=["*"]`. En producción hay que restringir a los orígenes reales. |
+| MQTT | `mosquitto.conf` con `allow_anonymous true`, sin TLS, puerto `1883` en claro. Aceptable en red local; endurecer para deploy. |
+| Logging de requests | `LoggingInterceptor` (NestJS) y `AuditLogMiddleware` (FastAPI) loguean método/ruta/status/latencia a stdout/archivo. Ninguno escribe en `system_logs`. |
+
+### Gaps conocidos (pendientes)
+
+- **Sin rate limiting** — no hay `@nestjs/throttler` ni equivalente; `/auth/login`
+  acepta intentos ilimitados.
+- **JWT por query param** — `jwt.strategy.ts` acepta `?token=<jwt>` (lo usa el
+  visor de PDF, `getDocumentDownloadUrl`). `LoggingInterceptor` loguea la URL
+  completa → el token queda en los logs de NestJS.
+- **Cookie de sesión** — `kuaai_token` se setea desde JS (`document.cookie`), sin
+  `HttpOnly`, `Secure` ni `SameSite`.
+- **CORS permisivo** en ambos backends (ver arriba).
+- **Sin HTTPS/TLS** — todo el tráfico (browser ↔ NestJS, MQTT) va en claro; falta
+  terminación TLS / reverse proxy para el deploy.
+- **IDOR en el proxy** — los endpoints de `/threads/*` y `/agent/history/:user_id`
+  reciben `user_id` en body/params y no lo contrastan contra el `sub` del JWT; un
+  usuario autenticado podría leer hilos de otro.
+- **`system_logs`** — tabla creada (migración `003_system_logs.sql`) pero ningún
+  código la escribe; no hay auditoría persistente real.
+
+---
+
+## 10. Referencias
 
 Este documento resume la arquitectura; el detalle de implementación y las decisiones puntuales viven en documentos aparte:
 
