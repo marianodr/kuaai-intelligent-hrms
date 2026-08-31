@@ -8,6 +8,7 @@ from app import database, minio_client, embeddings as emb_service
 from app.services.agent_service import init_agent
 from app.routers import documents, agent, threads
 from app.middleware.audit_log import AuditLogMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 
 setup_logging(settings.log_level, settings.log_file)
 
@@ -31,6 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(AuditLogMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(agent.router, prefix="/agent", tags=["agent"])
