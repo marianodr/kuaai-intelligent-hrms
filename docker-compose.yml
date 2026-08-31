@@ -34,8 +34,10 @@ services:
     build:
       context: ./apps/backend-fastapi
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    # Sin mapeo de puerto al host: FastAPI no tiene autenticación propia y solo
+    # debe ser alcanzable por NestJS a través de la red interna de Docker
+    # (http://backend-fastapi:8000). Exponerlo al host permitía saltarse la
+    # autenticación de NestJS desde cualquier punto de la red del servidor.
     env_file: .env
     depends_on:
       postgres:

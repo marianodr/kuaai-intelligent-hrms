@@ -8,7 +8,7 @@
 set -euo pipefail
 
 NEST="http://localhost:3001"
-FAPI="http://localhost:8000"
+NEST_CONTAINER="${NEST_CONTAINER:-kuaai-intelligent-hrms-backend-nest-1}"
 PASS=0
 FAIL=0
 
@@ -34,8 +34,15 @@ NEST_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$NEST/auth/login" -X POST 
     -H "Content-Type: application/json" -d '{}' || echo "000")
 check "NestJS accesible (POST /auth/login responde)" '[ "$NEST_STATUS" != "000" ]'
 
-FAPI_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FAPI/health" || echo "000")
-check "FastAPI accesible (GET /health = 200)" '[ "$FAPI_STATUS" = "200" ]'
+# FastAPI ya no se publica al host (ver docker-compose.yml). La conectividad
+# que importa ahora es NestJS -> FastAPI por la red interna de Docker, así que
+# el chequeo se hace desde dentro del contenedor de NestJS. La imagen es
+# node:20-alpine (sin curl), por eso se usa node para leer el status code.
+FAPI_STATUS=$(docker exec "$NEST_CONTAINER" node -e '
+  require("http").get("http://backend-fastapi:8000/health", r => { console.log(r.statusCode); process.exit(0); })
+    .on("error", () => { console.log("000"); process.exit(0); });
+' 2>/dev/null || echo "000")
+check "FastAPI accesible desde NestJS (red interna) = 200" '[ "$FAPI_STATUS" = "200" ]'
 
 # ─── 1. Autenticación ────────────────────────────────────────
 bold "1. Autenticación"
